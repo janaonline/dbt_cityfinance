@@ -1,6 +1,6 @@
-Welcome to your new dbt project!
+DBT for [cityfinance](https://cityfinance.in/) 
 
-### Using the starter project
+### Using the project
 
 Try running the following commands:
 - dbt run
