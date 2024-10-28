@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: cityfinance
+    schema: mongo_staging
+    tables:    
+      - name: propertytaxops 
+        identifier: propertytaxops 
+        description: "All cases"   
+      - name: states 
+        identifier: states
+        description: "Case occurence"
+      - name: ulbs
+        identifier: ulbs
+        description: "Case referral"
+      - name: years
+        identifier: years
+        description: Administrative units lookup table
