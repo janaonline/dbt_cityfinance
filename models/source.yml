@@ -6,13 +6,16 @@ sources:
     tables:    
       - name: propertytaxops 
         identifier: propertytaxops 
-        description: "All cases"   
+      - name: propertytaxopmappers 
+        identifier: propertytaxopmappers 
+        description: "Property tax questions"   
       - name: states 
         identifier: states
-        description: "Case occurence"
       - name: ulbs
         identifier: ulbs
-        description: "Case referral"
       - name: years
         identifier: years
-        description: Administrative units lookup table
+      - name: gsdp_rate
+        identifier: gsdp_rate
+      - name: population
+        identifier: population
