@@ -6,6 +6,7 @@ with ulb_growth_rate as (
     select
         ulb,
         district,
+        state_code,
         state,
         growth_rate
     from {{ ref('growth_rate') }}
@@ -21,6 +22,7 @@ current_gsdp_rate as (
     select
         ulb,
         t1.state,
+        t1.state_code,
         district,
         growth_rate,
         case
@@ -35,14 +37,16 @@ current_gsdp_rate as (
 state_summary as (
     select
         state,
+        state_code,
         sum(is_eligible) as eligible_cities,
         count(ulb) as total_cities
     from eligibility
-    group by state
+    group by state, state_code
 )
 
 select
     state,
+    state_code,
     eligible_cities,
     total_cities,
     round(eligible_cities * 100.0 / nullif(total_cities, 0), 2) as eligibility_percentage

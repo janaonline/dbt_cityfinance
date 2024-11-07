@@ -6,10 +6,11 @@
 with state_ulb_counts as (
     select
         state,
+        state_code,
         year,
         count(distinct ulb) as total_ulbs
     from {{ ref('stg_tax_sub_rate') }}
-    group by state, year
+    group by state, year, state_code
 ),
 
 state_approved_ulbs as (
@@ -25,6 +26,7 @@ state_approved_ulbs as (
 select
     s.state,
     s.year,
+    CONCAT('IN-', s.state_code) AS state_code,
     coalesce(a.approved_ulbs, 0) as approved_ulbs,
     s.total_ulbs,
     round(
