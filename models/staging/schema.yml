@@ -2,11 +2,26 @@
 version: 2
 
 models:
-  - name: tax_sub_rate
+  - name: stg_tax_sub_rate
     description: "Property Tax Submission rate"
     columns:
-      - name: id
-        description: "The primary key for this table"
-        data_tests:
-          - unique
+      - name: ulb
+        description: "Name of the Urban Local Body (ULB)."
+        tests:
+          - not_null
+      - name: year
+        description: "Design year."
+        tests:
+          - not_null
+      - name: state
+        description: "State name."
+        tests:
+          - not_null
+      - name: state_code
+        description: "Code of the state."
+        tests:
+          - not_null
+      - name: status
+        description: "Status of the property tax record."
+        tests:
           - not_null
