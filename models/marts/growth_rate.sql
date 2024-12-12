@@ -10,7 +10,6 @@ WITH year_data AS (
         district,
         state,
         year,
-        state_code,
         CASE 
             WHEN value IS NULL OR value = '' THEN 0 
             ELSE CAST(value AS FLOAT)
@@ -24,18 +23,17 @@ pivoted_data AS (
     SELECT 
         ulb,
         district,
-        state_code,
         state,
         MAX(CASE WHEN year = '2021-22' THEN value ELSE NULL END) AS value_2021_22,
         MAX(CASE WHEN year = '2022-23' THEN value ELSE NULL END) AS value_2022_23
     FROM year_data
-    GROUP BY ulb, district, state, state_code
-)
-SELECT
+    GROUP BY ulb, district, state
+),
+
+growth_rate as (SELECT
     ulb,
     district,
     state,
-    CONCAT('IN-', state_code) AS state_code,
     value_2021_22,
     value_2022_23,
     CASE 
@@ -43,4 +41,17 @@ SELECT
         ELSE ((value_2022_23 - value_2021_22) / value_2021_22) * 100
     END AS growth_rate
 FROM pivoted_data
+)
+
+SELECT 
+    ulb,
+    district,
+    g.state,
+    value_2021_22,
+    value_2022_23,
+    growth_rate,
+    iso_code as state_code 
+    from growth_rate g join
+    {{ source('cityfinance','iso_codes') }} i
+    on g.state = i.state
 

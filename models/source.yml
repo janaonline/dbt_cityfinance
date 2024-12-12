@@ -3,12 +3,14 @@ version: 2
 sources:
   - name: cityfinance
     schema: mongo_staging
-    tables:    
+    tables: 
+      - name: iso_codes 
+        identifier: iso_codes
       - name: propertytaxops 
         identifier: propertytaxops 
       - name: propertytaxopmappers 
         identifier: propertytaxopmappers 
-        description: "Property tax questions"   
+        description: "Property tax questions"
       - name: states 
         identifier: states
       - name: ulbs

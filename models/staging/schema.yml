@@ -17,10 +17,6 @@ models:
         description: "State name."
         tests:
           - not_null
-      - name: state_code
-        description: "Code of the state."
-        tests:
-          - not_null
       - name: status
         description: "Status of the property tax record."
         tests:

@@ -19,6 +19,7 @@ ulb_info as (
         u.district,
         u.state
     from {{ source('cityfinance','ulbs') }} u
+  
 ),
 
 year_info as (
@@ -31,7 +32,6 @@ year_info as (
 state_info as (
     select
         s._id as state_id,
-        s.code as state_code,
         s.name
     from {{ source('cityfinance','states') }} s
 )
@@ -41,7 +41,6 @@ select
     u.district,
     y.year,
     s.name as state,
-    s.state_code,
     p.value,
     p.type
 from property_tax_mapper p

@@ -7,7 +7,10 @@
     select
         p.ulb,
         p.design_year,
-        p.status
+        CASE 
+            WHEN CAST(p."currentFormStatus" AS INT) = 4 OR CAST(p."currentFormStatus" AS INT) = 6 THEN 'APPROVED' 
+            ELSE 'PENDING'
+        END as status 
     from {{ source('cityfinance','propertytaxops') }} p
 ),
 
@@ -30,7 +33,6 @@ year_info as (
 state_info as (
     select
         s._id as state_id,
-        s.code as state_code,
         s.name
     from {{ source('cityfinance','states') }} s
 )
@@ -40,7 +42,6 @@ select
     u.district,
     y.year,
     s.name as state,
-    s.state_code,
     p.status
 from property_tax p
 join ulb_info u
