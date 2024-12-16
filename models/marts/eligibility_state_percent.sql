@@ -41,30 +41,16 @@ state_summary as (
     group by state
 ),
 
-total_ulbs as (SELECT
-        s.name as state,
-        u._id as id
-    FROM {{ source('cityfinance', 'states') }} s
-    Join {{ source('cityfinance','ulbs') }} u
-    ON  s._id = u.state 
-    where u."isActive" = true
-    and s."isUT"= False
-)
-,
 
 eligible_cities as(
     SELECT 
     ulb_counts.state,
     COALESCE(s.eligible_cities, 0) AS eligible_cities,
-    COALESCE(ulb_counts.total_cities, 0) AS total_cities,
-    round(COALESCE(s.eligible_cities, 0) * 100.0 / nullif(ulb_counts.total_cities, 0), 2) as eligibility_percentage
+    COALESCE(ulb_counts.total_ulbs, 0) AS total_cities,
+    round(COALESCE(s.eligible_cities, 0) * 100.0 / nullif(ulb_counts.total_ulbs, 0), 2) as eligibility_percentage
 from state_summary s
-right Join (SELECT
-        state,
-        COUNT(DISTINCT id) AS total_cities
-    FROM total_ulbs
-    GROUP BY state
-) ulb_counts ON s.state = ulb_counts.state
+right Join {{ ref('ulbs_in_state') }} ulb_counts
+ ON s.state = ulb_counts.state
 )
 
 SELECT e.state, eligible_cities, total_cities, eligibility_percentage, iso_code as state_code
