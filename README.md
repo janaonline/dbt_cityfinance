@@ -161,6 +161,12 @@ dbt build --select grants_condition --target dev
 dbt run --select tag:property_tax
 ```
 
+or 
+
+```bash
+dbt run --select grants_condition
+```
+
 ### Run grants\_condition marts only:
 
 ```bash
