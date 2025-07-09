@@ -1,0 +1,39 @@
+version: 2
+
+sources:
+  - name: cityfinance_prod
+    schema: CF_Prod
+    tables: 
+      - name: iso_codes 
+        identifier: iso_codes
+      - name: annualaccountdatas 
+        identifier: annualaccountdatas 
+      - name: gfcformcollections 
+        identifier: gfcformcollections 
+        description: "collection form"
+      - name: odfformcollections 
+        identifier: odfformcollections
+      - name: propertytaxopmappers
+        identifier: propertytaxopmappers
+      - name: propertytaxops
+        identifier: propertytaxops
+      - name: state_gsdp
+        identifier: state_gsdp
+      - name: states
+        identifier: states
+      - name: twentyeightslbforms
+        identifier: twentyeightslbforms
+      - name: uas
+        identifier: uas           
+      - name: ulbs
+        identifier: ulbs        
+      - name: utilizationreports
+        identifier: utilizationreports        
+      - name: xvfcgrantulbforms
+        identifier: xvfcgrantulbforms        
+      - name: years
+        identifier: years
+      - name: fold1bUAs
+        identifier: fold1bUAs
+      - name: fold1bUntiedAndTied
+        identifier: fold1bUntiedAndTied                  
