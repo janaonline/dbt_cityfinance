@@ -30,11 +30,11 @@ clean-targets:         # directories to be removed by `dbt clean`
 # directory as views. These settings can be overridden in the individual model
 # files using the `{{ config(...) }}` macro.
 models:
-  # Janaagraha:
-  #   # Config indicated by + and applies to all files under models/example/
-  #   example:
-  #     +materialized: view
-  Janaagraha:     # <-- This must match the project name
+  Janaagraha:  # ← Must match the `name:` field in dbt_project.yml
+    property_tax_poc:
+      +schema: property_tax_poc_prod
+      #+tags: ['property_tax']
+      +materialized: table
     grants_condition:
       #staging:
         #+schema: grants_staging

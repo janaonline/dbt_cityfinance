@@ -27,6 +27,11 @@ Tags help you:
 * Identify model layer (e.g., `staging`, `marts`)
 * Filter model runs for dev, testing, or CI/CD pipelines
 
+
+## 📁 Folder Structure (Organized by Module)
+
+Your DBT repo structure should look like:
+
 ---
 
 ## 📁 Recommended Folder & Tag Structure
@@ -51,138 +56,137 @@ models/
 
 ---
 
-## 🏷 How to Add Tags in Models
+## 🏷️ Tags Setup (`dbt_project.yml`)
 
-```sql
-{{ config(
-    materialized='table',
-    tags=['property_tax', 'marts']
-) }}
+Use `+tags` in `dbt_project.yml` like this:
+
+```yaml
+models:
+  Janaagraha:  # match your project name
+    property_tax_poc:
+      +schema: property_tax_poc_prod
+      +tags: ['property_tax']
+    grants_condition:
+      staging:
+        +schema: grants_condition_staging
+        +tags: ['grants_condition', 'staging']
+        +materialized: table
+      marts:
+        +schema: grants_condition_prod
+        +tags: ['grants_condition', 'marts']
+        +materialized: table
+  elementary:
+    +schema: "elementary"
 ```
 
 ---
 
-## 🚀 Common dbt Run Commands with Tags
+## ✅ Run Models by Tag
 
-### ✅ Run all models from a module:
+| Command                                                        | What It Does                                            |
+| -------------------------------------------------------------- | ------------------------------------------------------- |
+| `dbt run --select tag:property_tax`                            | Runs all models tagged `property_tax`                   |
+| `dbt run --select tag:grants_condition`                        | Runs all models from grants condition module            |
+| `dbt run --select tag:staging`                                 | ⚠️ Runs *all* staging models across modules             |
+| `dbt run --select models/grants_condition/staging tag:staging` | ✅ Best way to run only grants\_condition staging models |
+| `dbt run --select models/grants_condition/marts tag:marts`     | Runs only `marts` folder models for `grants_condition`  |
+
+---
+
+## 🧪 For Dev vs Prod Environments
+
+You have only **one database**, so schema separation is handled inside `dbt_project.yml`.
+
+But your `profiles.yml` still controls which database/schema gets used (default fallback):
+
+### Example local `profiles.yml`:
+
+```yaml
+janaagraha:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      ...
+      schema: dev_schema  # fallback only; overridden by `+schema:` in project
+```
+
+### 🔁 Dalgo's Platform
+
+Dalgo uses **its own internal `profiles.yml`**, e.g., with:
+
+```yaml
+target: dbt_staging
+```
+
+So all models without `+schema` would go into `dbt_staging`.
+
+But you **override that** with:
+
+```yaml
++schema: grants_condition_prod
+```
+
+---
+
+## 🧠 How Schema Naming Is Controlled
+
+You overrode the default schema naming logic using:
+
+```jinja
+-- macros/generate_schema_name.sql
+{% macro generate_schema_name(custom_schema_name, node) %}
+    {{ custom_schema_name if custom_schema_name is not none else target.schema }}
+{% endmacro %}
+```
+
+✅ So now:
+
+* `+schema: grants_condition_prod` → will generate schema **exactly as written**
+* No more unwanted prefixes like `dbt_staging_grants_condition_prod`
+
+---
+
+## 🧪 Testing & Running Locally
+
+### Build all grants\_condition models in dev:
+
+```bash
+dbt build --select grants_condition --target dev
+```
+
+### Run only property\_tax module:
 
 ```bash
 dbt run --select tag:property_tax
 ```
 
-### ✅ Run only staging models from grants\_condition:
+### Run grants\_condition marts only:
 
 ```bash
-dbt run --select grants_condition tag:staging
-```
-
-### ✅ Run only marts (dashboard-ready) models:
-
-```bash
-dbt run --select tag:marts
+dbt run --select models/grants_condition/marts tag:marts
 ```
 
 ---
 
-## 🔁 Use Path Selectors for Precision
+## 🚀 Optional: Prefect/Dalgo Task Commands
+
+Make sure Dalgo/Prefect tasks **run this before `dbt run`:**
 
 ```bash
-dbt run --select models/property_tax/staging tag:staging
+dbt deps
 ```
+
+To install packages from `packages.yml`.
 
 ---
 
-## 🔀 Use `--target` to Switch Between Environments
+## 🧼 Clean-Up & Best Practices
 
-Your `profiles.yml` may contain:
-
-```yaml
-outputs:
-  staging:
-    schema: mongo_staging
-    ...
-  prod:
-    schema: CF_Prod
-    ...
-```
-
-To run in different environments:
-
-```bash
-# Run in staging
-dbt run --target staging
-
-# Run in production
-dbt run --target prod
-```
-
-💡 You can combine with tags:
-
-```bash
-dbt run --select tag:grants_condition tag:marts --target prod
-```
-
----
-
-## ⛔ Avoid This
-
-```bash
-dbt run --select tag:staging
-```
-
-❌ Will run all staging models from all modules — not filtered.
-
----
-
----
-
-## ⚠️ How to Run a Single Model Like `fold1Summary.sql`
-
-Running `dbt run --select tag:grants_condition tag:marts` will run **all models** tagged with either.
-
-To run just **one model**, do this:
-
-### ✅ Option 1: Use model name (same as filename without `.sql`)
-
-```bash
-dbt run --select fold1Summary --target prod
-```
-
-### ✅ Option 2: Use exact file path
-
-```bash
-dbt run --select models/grants_condition/marts/fold1Summary.sql --target prod
-```
-
-### ✅ Option 3: Combine model name and tag
-
-```bash
-dbt run --select fold1Summary tag:grants_condition --target prod
-```
-
-### 🔍 Preview before running:
-
-```bash
-dbt ls --select fold1Summary
-```
-
----
-
-## ✅ Best Practices
-
-| Best Practice                                            | Why                                   |
-| -------------------------------------------------------- | ------------------------------------- |
-| Use tags to group by module + layer                      | Helps with maintenance and debugging  |
-| Add `--target` to run for a specific environment         | Keeps dev, staging, and prod separate |
-| Combine tags and paths                                   | Avoids accidental model runs          |
-| Generate docs with `dbt docs generate && dbt docs serve` | See lineage and tags visually         |
-
----
-
-## 🔍 Bonus Commands
-
-```bash
-dbt ls --select tag:grants_condition     # Preview models to be run
-dbt test --select tag:property_tax       # Run only tests for a tag
-dbt run --select tag:property_tax --target prod   # Run in prod
-```
+| Item           | Best Practice                                        |
+| -------------- | ---------------------------------------------------- |
+| `profiles.yml` | Only keep `dev` locally. Dalgo uses its own          |
+| Schema logic   | Always declare `+schema:` in `dbt_project.yml`       |
+| Tags           | Use `+tags:` to organize & control CLI execution     |
+| Macros         | Place `generate_schema_name` in `macros/`            |
+| Logs           | Ignore `target/` and `dbt_packages/` in `.gitignore` |
