@@ -173,6 +173,18 @@ dbt run --select grants_condition
 dbt run --select models/grants_condition/marts tag:marts
 ```
 
+## ⚠️ How to Run a Single Model Like `fold1Summary.sql`
+
+Running `dbt run --select tag:grants_condition tag:marts` will run **all models** tagged with either.
+
+To run just **one model**, do this:
+
+### ✅ Option 1: Use model name (same as filename without `.sql`)
+
+```bash
+dbt run --select fold1Summary --target dev
+```
+
 ---
 
 ## 🚀 Optional: Prefect/Dalgo Task Commands
