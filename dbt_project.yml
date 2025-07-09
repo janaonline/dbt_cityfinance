@@ -34,5 +34,15 @@ models:
   #   # Config indicated by + and applies to all files under models/example/
   #   example:
   #     +materialized: view
+  dbt_cityfinance:     # <-- This must match the project name
+    grants_condition:
+      #staging:
+        #+schema: grants_staging
+        #+tags: ['grants_condition', 'staging']
+        #+materialized: table
+      marts:
+        +schema: grants_condition_prod
+        +tags: ['grants_condition', 'marts']
+        +materialized: table
   elementary:
     +schema: "elementary"
