@@ -208,3 +208,61 @@ To install packages from `packages.yml`.
 | Tags           | Use `+tags:` to organize & control CLI execution     |
 | Macros         | Place `generate_schema_name` in `macros/`            |
 | Logs           | Ignore `target/` and `dbt_packages/` in `.gitignore` |
+
+
+---
+
+## 🌱 How to Load Data from CSV Files Using dbt Seed
+
+If you want to insert data from a `.csv` file (for example, `iso_codes.csv`), use the `dbt seed` command:
+
+```bash
+dbt seed --select iso_codes
+```
+
+- This will load the data from `seeds/iso_codes.csv` into your database as a table named `iso_codes`.
+- Make sure your CSV file is placed in the `seeds/` directory of your dbt project.
+- You can reference this table in your models using `{{ ref('iso_codes') }}`.
+
+**Tip:**  
+You can use `dbt seed` for any static or reference data you want to manage with version control and load into your warehouse.
+
+---
+
+### ⚙️ Configure Seeds Schema in dbt_project.yml
+
+To ensure your seed data (like `iso_codes.csv`) is loaded into the correct schema, add the following to your `dbt_project.yml` file:
+
+```yaml
+seeds:
+  Janaagraha:
+    +schema: CF_Prod
+```
+
+This will make dbt load all seed files into the `CF_Prod` schema for
+
+---
+
+### 🌱 How to Load the Same Seed into Multiple Schemas
+
+dbt seeds can only load each CSV into one schema per run.  
+If you want the same seed data (like `iso_codes.csv`) available in multiple schemas, use a model to copy it after seeding:
+
+1. **Seed into your primary schema (e.g., `CF_Prod`) as shown above.**
+
+2. **Create a model to copy the data to another schema:**
+
+```sql
+-- models/grants_condition/iso_codes_copy.sql
+{{ config(schema='grants_condition_prod', materialized='table') }}
+
+select * from {{ ref('iso_codes') }}
+```
+
+- This will create a table named `iso_codes_copy` in the `grants_condition_prod` schema with the same data.
+- You can rename the model or table as needed.
+
+**Tip:**  
+This approach keeps your seed data DRY and avoids duplicating CSV files.
+
+---

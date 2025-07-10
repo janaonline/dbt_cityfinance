@@ -37,7 +37,7 @@ iso_codes as (
     select
         state,
         iso_code
-    from {{ source('cityfinance','iso_codes') }}
+    from {{ source('cityfinance_prod','iso_codes') }}
 ),
 
 years as (

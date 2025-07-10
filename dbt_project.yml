@@ -1,16 +1,27 @@
+# =============================================================================
+# dbt_project.yml for the Janaagraha dbt Project
+# =============================================================================
+# This file configures your dbt project, including:
+# - Project name and version
+# - Profile to use for connections (must match your profiles.yml)
+# - Paths for models, seeds, macros, etc.
+# - Model and seed schema/materialization settings
+# - Clean targets for dbt clean
+# - Flags for package/materialization overrides
+# =============================================================================
 
-# Name your project! Project names should contain only lowercase characters
-# and underscores. A good package name should reflect your organization's
-# name or the intended use of these models
-name: 'Janaagraha'
-version: '1.0.0'
+name: 'Janaagraha'           # Project name (must be lowercase, matches models: section)
+version: '1.0.0'             # Project version
 
-# This setting configures which "profile" dbt uses for this project.
-profile: 'Janaagraha'
+profile: 'Janaagraha'        # Connection profile name (must match profiles.yml)
 
-# These configurations specify where dbt should look for different types of files.
-# The `model-paths` config, for example, states that models in this project can be
-# found in the "models/" directory. You probably won't need to change these!
+flags:
+  require_explicit_package_overrides_for_builtin_materializations: false
+  # Required for Elementary package compatibility with dbt 1.8+
+
+# -----------------------------------------------------------------------------
+# File/folder paths for dbt to find models, macros, seeds, etc.
+# -----------------------------------------------------------------------------
 model-paths: ["models"]
 analysis-paths: ["analyses"]
 test-paths: ["tests"]
@@ -18,31 +29,41 @@ seed-paths: ["seeds"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
 
-clean-targets:         # directories to be removed by `dbt clean`
+# -----------------------------------------------------------------------------
+# Directories to be removed by `dbt clean`
+# -----------------------------------------------------------------------------
+clean-targets:
   - "target"
   - "dbt_packages"
 
-
-# Configuring models
-# Full documentation: https://docs.getdbt.com/docs/configuring-models
-
-# In this example config, we tell dbt to build all models in the example/
-# directory as views. These settings can be overridden in the individual model
-# files using the `{{ config(...) }}` macro.
+# -----------------------------------------------------------------------------
+# Model configuration
+# -----------------------------------------------------------------------------
 models:
-  Janaagraha:  # ← Must match the `name:` field in dbt_project.yml
+  Janaagraha:  # Must match the `name:` field above
     property_tax_poc:
-      +schema: property_tax_poc_prod
-      #+tags: ['property_tax']
-      +materialized: table
+      +schema: property_tax_poc_prod           # All models in this folder go to this schema
+      #+tags: ['property_tax']                 # (Optional) Add tags for selection
+      +materialized: table                     # Materialize as tables by default
     grants_condition:
       #staging:
-        #+schema: grants_staging
+        #+schema: grants_condition_staging
         #+tags: ['grants_condition', 'staging']
         #+materialized: table
       marts:
-        +schema: grants_condition_prod
-        +tags: ['grants_condition', 'marts']
-        +materialized: table
+        +schema: grants_condition_prod         # All marts models go to this schema
+        +tags: ['grants_condition', 'marts']   # Add tags for selection
+        +materialized: table                   # Materialize as tables by default
   elementary:
-    +schema: "elementary"
+    +schema: "elementary"                      # Elementary package models go to this schema
+
+# -----------------------------------------------------------------------------
+# Seed configuration
+# -----------------------------------------------------------------------------
+seeds:
+  Janaagraha:
+    +schema: CF_Prod                           # All seeds (CSV files) go to this schema
+
+# =============================================================================
+# End of dbt_project.yml
+#
