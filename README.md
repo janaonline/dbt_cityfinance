@@ -149,41 +149,35 @@ You overrode the default schema naming logic using:
 
 ## 🧪 Testing & Running Locally
 
-### Build all grants\_condition models in dev:
+Temporarily Remove or Comment Out `+schema:` in `dbt_project.yml`
+
+1. In your `dbt_project.yml`, comment out or remove the `+schema:` line under the relevant model path (e.g., under `grants_condition.marts`).
+2. Save the file.
+3. Run: 
+
+### Run only property_tax module:
 
 ```bash
-dbt build --select grants_condition --target dev
+dbt run --select grants_condition --target dev
 ```
-
-### Run only property\_tax module:
+or Run only property_tax tag
 
 ```bash
-dbt run --select tag:property_tax
+dbt run --select tag:grants_condition --target dev
 ```
-
-or 
-
-```bash
-dbt run --select grants_condition
-```
-
-### Run grants\_condition marts only:
+or Run by folder path
 
 ```bash
 dbt run --select models/grants_condition/marts tag:marts
 ```
 
-## ⚠️ How to Run a Single Model Like `fold1Summary.sql`
-
-Running `dbt run --select tag:grants_condition tag:marts` will run **all models** tagged with either.
-
-To run just **one model**, do this:
-
-### ✅ Option 1: Use model name (same as filename without `.sql`)
+### Run specific sql file (e.g., fold1bUntiedAndTied.sql file)
 
 ```bash
-dbt run --select fold1Summary --target dev
+dbt run --select fold1bUntiedAndTied --target dev
 ```
+
+This will use the schema from your `profiles.yml` (dev_schema).
 
 ---
 
