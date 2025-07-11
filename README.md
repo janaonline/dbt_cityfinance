@@ -236,7 +236,7 @@ To ensure your seed data (like `iso_codes.csv`) is loaded into the correct schem
 ```yaml
 seeds:
   Janaagraha:
-    +schema: CF_Prod
+    +schema: cf_prod
 ```
 
 This will make dbt load all seed files into the `CF_Prod` schema for
@@ -253,10 +253,14 @@ If you want the same seed data (like `iso_codes.csv`) available in multiple sche
 2. **Create a model to copy the data to another schema:**
 
 ```sql
--- models/grants_condition/iso_codes_copy.sql
-{{ config(schema='grants_condition_prod', materialized='table') }}
+-- models/grants_condition/iso_codes.sql
+{{ config(schema='cf_prod', materialized='table') }}
 
-select * from {{ ref('iso_codes') }}
+select * from {{ source('cityfinance','iso_codes') }}
+```
+
+```bash
+dbt run --select iso_codes
 ```
 
 - This will create a table named `iso_codes_copy` in the `grants_condition_prod` schema with the same data.

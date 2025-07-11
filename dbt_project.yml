@@ -62,7 +62,7 @@ models:
 # -----------------------------------------------------------------------------
 seeds:
   Janaagraha:
-    +schema: CF_Prod                           # All seeds (CSV files) go to this schema
+    +schema: cf_prod                           # All seeds (CSV files) go to this schema
 
 # =============================================================================
 # End of dbt_project.yml

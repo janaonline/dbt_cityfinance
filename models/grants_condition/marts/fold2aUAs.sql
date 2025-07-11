@@ -18,9 +18,9 @@ with active_ulbs as (
         _id as ulb_id,
         name,
         state,
-        "UA_aibyte_transform" as ua_id
+        "UA" as ua_id
     from {{ source('cityfinance_prod','ulbs') }} 
-    where "isActive" = 't'
+    where "isActive" = 'true'
       and "isUA" = 'Yes'
 ),
 uas as (
@@ -36,7 +36,7 @@ states as (
         _id as state_id,
         name as state_name
     from {{ source('cityfinance_prod','states') }} 
-    where "isUT" = 'f'
+    where "isUT" = 'false'
       and name != 'TEST STATE'
 ),
 iso_codes as (
@@ -86,7 +86,7 @@ total_property_tax_collection as (
     from {{ source('cityfinance_prod','propertytaxopmappers') }} ptm
     left join {{ source('cityfinance_prod','years') }} y
         on ptm.year = y._id
-    where ptm."displayPriority_aibyte_transform" = '1.17'
+    where ptm."displayPriority" = '1.17'
       and y.year ~ '^\d{4}-\d{2}$'
 ),
 
@@ -103,7 +103,7 @@ current_property_tax_collection as (
     from {{ source('cityfinance_prod','propertytaxopmappers') }} ptm
     left join {{ source('cityfinance_prod','years') }} y
         on ptm.year = y._id
-    where ptm."displayPriority_aibyte_transform" = '1.18'
+    where ptm."displayPriority" = '1.18'
       and y.year ~ '^\d{4}-\d{2}$'
 )
 
@@ -174,7 +174,7 @@ left join iso_codes ic
 left join state_gsdp g
     on s.state_id = g."stateId"
 left join uas ua
-    on uy.ua_id = ua.ua_id    
+    on uy.ua_id::text = ua.ua_id    
 
 -- Join for T-2 year (design_year - 2)
 left join years y_B

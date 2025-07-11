@@ -2,7 +2,7 @@ version: 2
 
 sources:
   - name: cityfinance_prod
-    schema: CF_Prod
+    schema: cf_prod
     tables: 
       - name: iso_codes 
         identifier: iso_codes
@@ -32,8 +32,4 @@ sources:
       - name: xvfcgrantulbforms
         identifier: xvfcgrantulbforms        
       - name: years
-        identifier: years
-      - name: fold1bUAs
-        identifier: fold1bUAs
-      - name: fold1bUntiedAndTied
-        identifier: fold1bUntiedAndTied                  
+        identifier: years                  

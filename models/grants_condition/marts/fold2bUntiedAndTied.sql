@@ -18,7 +18,7 @@ with active_ulbs as (
         name,
         state
     from {{ source('cityfinance_prod','ulbs') }} 
-    where "isActive" = 't'
+    where "isActive" = 'true'
       and "isMillionPlus" = 'No'
 ),
 states as (
@@ -27,7 +27,7 @@ states as (
         _id as state_id,
         name as state_name
     from {{ source('cityfinance_prod','states') }} 
-    where "isUT" = 'f'
+    where "isUT" = 'false'
       and name != 'TEST STATE'
 ),
 iso_codes as (
@@ -76,7 +76,7 @@ total_property_tax_collection as (
     from {{ source('cityfinance_prod','propertytaxopmappers') }} ptm
     left join {{ source('cityfinance_prod','years') }} y
         on ptm.year = y._id
-    where ptm."displayPriority_aibyte_transform" = '1.17'
+    where ptm."displayPriority" = '1.17'
       and y.year ~ '^\d{4}-\d{2}$'
 ),
 
@@ -93,7 +93,7 @@ current_property_tax_collection as (
     from {{ source('cityfinance_prod','propertytaxopmappers') }} ptm
     left join {{ source('cityfinance_prod','years') }} y
         on ptm.year = y._id
-    where ptm."displayPriority_aibyte_transform" = '1.18'
+    where ptm."displayPriority" = '1.18'
       and y.year ~ '^\d{4}-\d{2}$'
 )
 

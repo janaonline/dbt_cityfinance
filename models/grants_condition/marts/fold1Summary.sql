@@ -11,7 +11,7 @@ with active_ulbs as (
         name,
         state
     from {{ source('cityfinance_prod','ulbs') }}
-    where "isActive" = 't'
+    where "isActive" = 'true'
 ),
 states as (
     -- Select all states except UTs and test states
@@ -19,7 +19,7 @@ states as (
         _id as state_id,
         name as state_name
     from {{ source('cityfinance_prod','states') }}
-    where "isUT" = 'f'
+    where "isUT" = 'false'
       and name != 'TEST STATE'
 ),
 ulb_count as (
