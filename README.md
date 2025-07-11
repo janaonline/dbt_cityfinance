@@ -1,13 +1,35 @@
-DBT for [cityfinance](https://cityfinance.in/) 
+# 📊 DBT for [CityFinance](https://cityfinance.in/)
 
-### Using the project
+## 🧭 Index
+
+- [🔧 Using the Project](#-using-the-project)
+- [📚 Resources](#-resources)
+- [🧾 DBT Tagging, Selector & Environment Reference Guide](#-dbt-tagging-selector--environment-reference-guide)
+  - [✅ Why Use Tags?](#️-why-use-tags)
+  - [📁 Folder Structure (Organized by Module)](#-folder-structure-organized-by-module)
+  - [🏷️ Tags Setup (`dbt_project.yml`)](#️-tags-setup-dbt_projectyml)
+  - [✅ Run Models by Tag](#️-run-models-by-tag)
+  - [🧪 For Dev vs Prod Environments](#-for-dev-vs-prod-environments)
+  - [🧠 How Schema Naming Is Controlled](#-how-schema-naming-is-controlled)
+  - [🧪 Testing & Running Locally](#-testing--running-locally)
+  - [🚀 Optional: Prefect/Dalgo Task Commands](#-optional-prefectdalgo-task-commands)
+  - [🧼 Clean-Up & Best Practices](#-clean-up--best-practices)
+- [🌱 How to Load Data from CSV Files Using dbt Seed](#-how-to-load-data-from-csv-files-using-dbt-seed)
+  - [⚙️ Configure Seeds Schema in dbt_project.yml](#️-configure-seeds-schema-in-dbt_projectyml)
+  - [🌱 How to Load the Same Seed into Multiple Schemas](#-how-to-load-the-same-seed-into-multiple-schemas)
+
+---
+
+## 🔧 Using the Project
 
 Try running the following commands:
-- dbt run
-- dbt test
 
+```bash
+dbt run
+dbt test
+```
 
-### Resources:
+## 📚 Resources
 - Learn more about dbt [in the docs](https://docs.getdbt.com/docs/introduction)
 - Check out [Discourse](https://discourse.getdbt.com/) for commonly asked questions and answers
 - Join the [chat](https://community.getdbt.com/) on Slack for live discussions and support
