@@ -43,7 +43,7 @@ models:
   Janaagraha:  # Must match the `name:` field above
     property_tax_poc:
       +schema: property_tax_poc_prod           # All models in this folder go to this schema
-      #+tags: ['property_tax']                 # (Optional) Add tags for selection
+      #+tags: ['property_tax_poc']             # (Optional) Add tags for selection
       +materialized: table                     # Materialize as tables by default
     grants_condition:
       #staging:
