@@ -23,13 +23,16 @@ with active_ulbs as (
     where "isActive" = 'true'
       and "isUA" = 'Yes'
 ),
+
 uas as (
-    -- Get all UA names and their IDs
+    -- Expand JSON array of ULBs in each UA row and map to individual ulb_id
     select
-        _id as ua_id,
-        name as ua_name
-    from {{ source('cityfinance_prod','uas') }}
+        ua.name as ua_name,
+        jsonb_array_elements_text(ua.ulb)::text as ulb_id  -- explode ulb array
+    from {{ source('cityfinance_prod','uas') }} ua
+    where ua.ulb is not null
 ),
+
 states as (
     -- Select all states except UTs and test states
     select
@@ -174,7 +177,7 @@ left join iso_codes ic
 left join state_gsdp g
     on s.state_id = g."stateId"
 left join uas ua
-    on uy.ua_id::text = ua.ua_id    
+    on uy.ulb_id = ua.ulb_id
 
 -- Join for T-2 year (design_year - 2)
 left join years y_B
