@@ -48,6 +48,48 @@ years as (
     from {{ source('cityfinance_prod','years') }}
 ),
 
+-- ============================================================================
+-- 🧠 Explanation of `ulb_years` CTE
+-- ============================================================================
+
+-- ✅ Purpose:
+--   Generates a complete matrix of all combinations of active, eligible ULBs and
+--   all financial years present in the dataset. This acts as the foundational
+--   scaffold for joining other datasets like property tax, annual accounts, DUR, etc.
+
+-- ============================================================================
+-- 🔍 Key Inputs:
+-- ----------------------------------------------------------------------------
+-- - `active_ulbs`: All active ULBs that are eligible for grants (non-million-plus)
+-- - `years`: All available financial years from the master `years` table
+
+-- ============================================================================
+-- 📐 Logic:
+-- ----------------------------------------------------------------------------
+-- - Performs a `CROSS JOIN` between `active_ulbs` and `years`
+-- - Ensures that every active ULB is evaluated for every financial year
+-- - Each row represents a unique (ULB, Year) pair
+
+-- ============================================================================
+-- 🏁 Output Columns:
+-- ----------------------------------------------------------------------------
+-- | Column            | Description                         |
+-- |-------------------|-------------------------------------|
+-- | ulb_id            | Unique ID of the ULB                |
+-- | ulb_name          | Name of the ULB                     |
+-- | state             | State ID to which ULB belongs       |
+-- | design_year_id    | ID of the financial year            |
+-- | design_year       | Year string in 'YYYY-YY' format     |
+
+-- ============================================================================
+-- ✅ Why this approach?
+-- ----------------------------------------------------------------------------
+-- - Guarantees full ULB-year coverage even if data is missing in some datasets
+-- - Ensures consistent structure for left joins across all derived tables
+-- - Avoids null mismatches and incomplete joins downstream
+
+-- ============================================================================
+
 ulb_years as (
     -- Create a matrix of all active ULBs and all years
     select
@@ -60,25 +102,116 @@ ulb_years as (
     cross join years y
 ),
 
+-- ============================================================================
+-- 🧠 Explanation of `annual_accounts` CTE
+-- ============================================================================
+
+-- ✅ Purpose:
+--   Determines the submission status of annual accounts (Provisional and Audited)
+--   for each ULB and design year. Ensures complete coverage of all ULB-year
+--   combinations and avoids nulls by defaulting to 'No' when no record exists.
+
+-- ============================================================================
+-- 🔍 Key Inputs:
+-- ----------------------------------------------------------------------------
+-- - `ulb_years`: All valid ULB and year combinations
+-- - `annualaccountdatas`: Source table containing annual accounts submission info
+
+-- ============================================================================
+-- 📐 Logic:
+-- ----------------------------------------------------------------------------
+-- - Left join `annualaccountdatas` on ULB ID and design year
+-- - For each ULB-year:
+--     1. If no record exists → set submission status to `'No'`
+--     2. If record exists and:
+--        - `currentFormStatus` = 4 or 6
+--        - AND `unAudited.submit_annual_accounts` = true → `'Yes'` for Provisional
+--        - AND `audited.submit_annual_accounts` = true → `'Yes'` for Audited
+--     3. Else → `'No'`
+
+-- ============================================================================
+-- 🏁 Output Columns:
+-- ----------------------------------------------------------------------------
+-- | Column                         | Description                                     |
+-- |--------------------------------|-------------------------------------------------|
+-- | ulb                            | ULB ID from `ulb_years`                         |
+-- | design_year                    | Design year ID from `ulb_years`                 |
+-- | "Annual Accounts Provisional" | 'Yes' if provisional accounts submitted properly |
+-- | "Annual Accounts Audited"     | 'Yes' if audited accounts submitted properly     |
+
+-- ============================================================================
+-- ✅ Why this approach?
+-- ----------------------------------------------------------------------------
+-- - Prevents nulls in downstream joins or filters
+-- - Eliminates need for coalesce() or defensive logic later
+-- - Ensures consistent 'Yes'/'No' values across the model
+
+-- ============================================================================
+
 annual_accounts as (
-    -- Annual accounts provisional and audited status for each ULB and year
     select
-        ulb,
-        design_year,
-        case 
-            when ("currentFormStatus" = 4 or "currentFormStatus" = 6)
-              and ("unAudited"->>'submit_annual_accounts')::boolean = true
+        uy.ulb_id as ulb,
+        uy.design_year_id as design_year,
+
+        -- Annual Accounts Provisional Submission
+        case
+            when aa.ulb is null then 'No'  -- No record at all
+            when aa."currentFormStatus" in (4, 6)
+                 and (aa."unAudited"->>'submit_annual_accounts')::boolean = true
             then 'Yes'
             else 'No'
         end as "Annual Accounts Provisional",
-        case 
-            when ("currentFormStatus" = 4 or "currentFormStatus" = 6)
-              and ("audited"->>'submit_annual_accounts')::boolean = true
+
+        -- Annual Accounts Audited Submission
+        case
+            when aa.ulb is null then 'No'  -- No record at all
+            when aa."currentFormStatus" in (4, 6)
+                 and (aa."audited"->>'submit_annual_accounts')::boolean = true
             then 'Yes'
             else 'No'
         end as "Annual Accounts Audited"
-    from {{ source('cityfinance_prod','annualaccountdatas') }}
+
+    from ulb_years uy
+    left join {{ source('cityfinance_prod','annualaccountdatas') }} aa
+        on uy.ulb_id = aa.ulb and uy.design_year_id = aa.design_year
 ),
+
+-- ============================================================================
+-- 🧠 Explanation of `state_gsdp` CTE
+-- ============================================================================
+
+-- ✅ Purpose:
+--   Extracts the state-wise GSDP (Gross State Domestic Product) value used for
+--   evaluating property tax collection growth eligibility for ULBs.
+
+-- ============================================================================
+-- 🔍 Key Inputs:
+-- ----------------------------------------------------------------------------
+-- - `state_gsdp`: Source table containing economic data for each state
+--   including GSDP figures in current prices (JSON structure)
+
+-- ============================================================================
+-- 📐 Logic:
+-- ----------------------------------------------------------------------------
+-- - For each state, fetch the first GSDP record from the `data` JSON array
+-- - Extract the `currentPrice` value
+-- - Convert it to numeric and round to 2 decimal places
+
+-- ============================================================================
+-- 🏁 Output Columns:
+-- ----------------------------------------------------------------------------
+-- | Column                      | Description                          |
+-- |-----------------------------|--------------------------------------|
+-- | stateId                     | Unique ID of the state               |
+-- | "Property tax State GSDP"   | GSDP value (current price, numeric)  |
+
+-- ============================================================================
+-- ✅ Why this approach?
+-- ----------------------------------------------------------------------------
+-- - Ensures standardized GSDP comparison across all ULBs within the same state
+-- - Provides benchmark growth value for property tax condition eligibility
+
+-- ============================================================================
 
 state_gsdp as (
     -- State GSDP (Gross State Domestic Product) for property tax
@@ -87,6 +220,46 @@ state_gsdp as (
         round((data->0->>'currentPrice')::numeric, 2) as "Property tax State GSDP"
     from {{ source('cityfinance_prod','state_gsdp') }}
 ),
+
+-- ============================================================================
+-- 🧠 Explanation of `property_tax_submitted` CTE
+-- ============================================================================
+
+-- ✅ Purpose:
+--   Determines whether each ULB has submitted its property tax form for a given
+--   financial year, ensuring that missing records are treated safely.
+
+-- ============================================================================
+-- 🔍 Key Inputs:
+-- ----------------------------------------------------------------------------
+-- - `ulb_years`: Complete list of ULB and design year combinations
+-- - `propertytaxops`: Source table indicating form submission status per ULB and year
+
+-- ============================================================================
+-- 📐 Logic:
+-- ----------------------------------------------------------------------------
+-- - Left join `propertytaxops` to ensure all ULB-year pairs are retained
+-- - If no record exists for a ULB-year → return `'No'`
+-- - If a record exists and `currentFormStatus` is 4 or 6 → return `'Yes'`
+-- - Otherwise → return `'No'`
+
+-- ============================================================================
+-- 🏁 Output Columns:
+-- ----------------------------------------------------------------------------
+-- | Column                  | Description                                 |
+-- |-------------------------|---------------------------------------------|
+-- | ulb                    | ULB ID from `ulb_years`                      |
+-- | design_year            | Design year ID from `ulb_years`             |
+-- | "Property tax Submitted"| 'Yes' if valid form submitted, else 'No'    |
+
+-- ============================================================================
+-- ✅ Why this approach?
+-- ----------------------------------------------------------------------------
+-- - Ensures downstream models never encounter null values
+-- - Prevents incorrect eligibility calculations due to missing form records
+-- - Promotes consistency across all eligibility condition logic
+
+-- ============================================================================
 
 property_tax_submitted as (
     -- Ensures all ULB-year combinations are covered
