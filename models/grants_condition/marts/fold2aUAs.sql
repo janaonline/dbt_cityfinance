@@ -56,13 +56,7 @@ years as (
         year
     from {{ source('cityfinance_prod','years') }}
 ),
-state_gsdp as (
-    -- State GSDP (Gross State Domestic Product) values
-    select
-        "stateId",
-        round((data->0->>'currentPrice')::numeric, 2) as "GSDP"
-    from {{ source('cityfinance_prod','state_gsdp') }}
-),
+
 ulb_years as (
     -- Create a matrix of all active ULBs and all years
     select
@@ -74,6 +68,16 @@ ulb_years as (
         y.year as design_year
     from active_ulbs u
     cross join years y
+),
+
+state_gsdp as (
+    -- Unnest data array and expose designYear for joining
+    select
+        sg."stateId",
+        d->>'designYear' as design_year_id,
+        round((d->>'currentPrice')::numeric, 2) as "GSDP"
+    from {{ source('cityfinance_prod','state_gsdp') }} sg,
+         lateral jsonb_array_elements(sg.data) as d
 ),
 
 total_property_tax_collection as (
@@ -176,6 +180,7 @@ left join iso_codes ic
     on s.state_name = ic.state
 left join state_gsdp g
     on s.state_id = g."stateId"
+    and uy.design_year_id = g.design_year_id
 left join uas ua
     on uy.ulb_id = ua.ulb_id
 

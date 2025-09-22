@@ -22,11 +22,53 @@
 
 ## 🔧 Using the Project
 
-Try running the following commands:
+
+Follow these steps to set up the project locally:
+
+### 1. Clone the Repository
 
 ```bash
-dbt run
-dbt test
+git clone <repo-url>
+cd dbt_cityfinance
+```
+
+### 2. Create and Activate Virtual Environment
+
+```bash
+python3 -m venv venv
+source venv/bin/activate   # On Mac/Linux
+venv\Scripts\activate      # On Windows (PowerShell)
+```
+
+### 3. Upgrade pip
+
+```bash
+pip install --upgrade pip
+```
+
+### 4. Install dbt Core + Postgres Adapter
+
+```bash
+pip install dbt-core dbt-postgres
+```
+
+> Replace `dbt-postgres` with the adapter you need if using a different warehouse
+> (e.g., `dbt-snowflake`, `dbt-bigquery`, `dbt-duckdb`, etc.)
+
+### 5. Verify Installation
+
+```bash
+which python3     # should point to ./venv/bin/python3
+which dbt         # should point to ./venv/bin/dbt
+dbt --version     # should show installed + latest version
+```
+
+### 6. Run dbt
+
+```bash
+dbt debug         # check connection + setup
+dbt run           # run models
+dbt test          # run tests
 ```
 
 ## 📚 Resources

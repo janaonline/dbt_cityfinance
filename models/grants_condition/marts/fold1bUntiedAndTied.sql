@@ -181,44 +181,56 @@ annual_accounts as (
 -- ============================================================================
 
 -- ✅ Purpose:
---   Extracts the state-wise GSDP (Gross State Domestic Product) value used for
---   evaluating property tax collection growth eligibility for ULBs.
+--   Extracts the state-wise GSDP (Gross State Domestic Product) value for each
+--   state and financial year, used for evaluating property tax collection growth
+--   eligibility for ULBs. The GSDP value is matched to the relevant financial
+--   year by joining the `designYear` field in the `data` array with the
+--   `design_year_id` from the master years table.
 
 -- ============================================================================
 -- 🔍 Key Inputs:
 -- ----------------------------------------------------------------------------
--- - `state_gsdp`: Source table containing economic data for each state
---   including GSDP figures in current prices (JSON structure)
+-- - `state_gsdp`: Source table containing economic data for each state,
+--   where the `data` field is a JSON array of GSDP records for multiple years.
+--   Each element contains:
+--     - `designYear`: Year ID (foreign key to years table)
+--     - `currentPrice`: GSDP value for that year (numeric)
 
 -- ============================================================================
 -- 📐 Logic:
 -- ----------------------------------------------------------------------------
--- - For each state, fetch the first GSDP record from the `data` JSON array
--- - Extract the `currentPrice` value
--- - Convert it to numeric and round to 2 decimal places
+-- - Unnest the `data` JSON array for each state.
+-- - For each element, extract the `designYear` and `currentPrice`.
+-- - Output one row per state and design year, with the corresponding GSDP value.
+-- - This enables precise year-wise matching for downstream eligibility checks.
+-- - If no GSDP value exists for a given state-year, the join will result in NULL.
 
 -- ============================================================================
 -- 🏁 Output Columns:
 -- ----------------------------------------------------------------------------
--- | Column                      | Description                          |
--- |-----------------------------|--------------------------------------|
--- | stateId                     | Unique ID of the state               |
--- | "Property tax State GSDP"   | GSDP value (current price, numeric)  |
+-- | Column                      | Description                                   |
+-- |-----------------------------|-----------------------------------------------|
+-- | stateId                     | Unique ID of the state                        |
+-- | design_year_id              | Year ID (matches years._id / ulb_years.design_year_id) |
+-- | "Property tax State GSDP"   | GSDP value (current price, numeric, rounded)  |
 
 -- ============================================================================
 -- ✅ Why this approach?
 -- ----------------------------------------------------------------------------
--- - Ensures standardized GSDP comparison across all ULBs within the same state
--- - Provides benchmark growth value for property tax condition eligibility
+-- - Ensures accurate, year-specific GSDP comparison for each ULB and year.
+-- - Supports eligibility logic that depends on the correct GSDP benchmark.
+-- - Handles missing data gracefully by returning NULL if no match is found.
 
 -- ============================================================================
 
 state_gsdp as (
-    -- State GSDP (Gross State Domestic Product) for property tax
+    -- Unnest data array and match designYear to year_id
     select
-        "stateId",
-        round((data->0->>'currentPrice')::numeric, 2) as "Property tax State GSDP"
-    from {{ source('cityfinance_prod','state_gsdp') }}
+        sg."stateId",
+        d->>'designYear' as design_year_id,
+        round((d->>'currentPrice')::numeric, 2) as "Property tax State GSDP"
+    from {{ source('cityfinance_prod','state_gsdp') }} sg,
+         lateral jsonb_array_elements(sg.data) as d
 ),
 
 -- ============================================================================
@@ -467,6 +479,7 @@ growth_values as (
         on uy.state = s.state_id
     left join state_gsdp g
         on s.state_id = g."stateId"
+        and uy.design_year_id = g.design_year_id
 
     -- Property tax submission status
     left join property_tax_submitted pts
@@ -601,6 +614,7 @@ left join annual_accounts a
     and uy.design_year_id = a.design_year
 left join state_gsdp g
     on s.state_id = g."stateId"
+   and uy.design_year_id = g.design_year_id
 left join property_tax_submitted p
     on uy.ulb_id = p.ulb
     and uy.design_year_id = p.design_year

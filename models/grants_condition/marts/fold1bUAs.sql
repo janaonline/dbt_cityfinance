@@ -81,11 +81,13 @@ annual_accounts as (
 ),
 
 state_gsdp as (
-    -- State GSDP (Gross State Domestic Product) for property tax
+    -- Unnest data array and match designYear to year_id
     select
-        "stateId",
-        round((data->0->>'currentPrice')::numeric, 2) as "Property tax State GSDP"
-    from {{ source('cityfinance_prod','state_gsdp') }}
+        sg."stateId",
+        d->>'designYear' as design_year_id,
+        round((d->>'currentPrice')::numeric, 2) as "Property tax State GSDP"
+    from {{ source('cityfinance_prod','state_gsdp') }} sg,
+         lateral jsonb_array_elements(sg.data) as d
 ),
 
 property_tax_submitted as (
@@ -170,6 +172,7 @@ growth_values as (
         on uy.state = s.state_id
     left join state_gsdp g
         on s.state_id = g."stateId"
+        and uy.design_year_id = g.design_year_id
 
     -- Property tax submission status
     left join property_tax_submitted pts
@@ -324,6 +327,7 @@ left join annual_accounts a
     and uy.design_year_id = a.design_year
 left join state_gsdp g
     on s.state_id = g."stateId"
+   and uy.design_year_id = g.design_year_id
 left join property_tax_submitted p
     on uy.ulb_id = p.ulb
     and uy.design_year_id = p.design_year
