@@ -309,16 +309,26 @@ property_tax_submitted as (
 -- 🧹 Numeric Value Cleaning Using Regex
 -- ============================================================================
 -- The line:
---     when ptm.value ~ '^\d+(\.\d+)?$' then ptm.value::numeric
--- ensures only clean, **numeric values** are considered for further computation.
+--     when ptm.value ~ '^(-?(\d+(.\d*)?|.\d+))$' then ptm.value::numeric
+-- ensures only clean, numeric values are considered for further computation.
 --
--- Breakdown of regex `'^\d+(\.\d+)?$'`:
---   - `^` and `$`: Enforce that the entire string matches (not just part of it)
---   - `\d+`       : At least one digit (e.g., `123`)
---   - `(\.\d+)?`  : Optional decimal part (e.g., `.45`, `.0`)
+-- Breakdown of regex '^(-?(\d+(.\d*)?|.\d+))$':
+--   - ^ and $    : Anchor the match to the entire string
+--   - -?         : Optional minus sign (allows negative numbers)
+--   - \d+        : One or more digits (e.g., "123")
+--   - (.\d*)?    : Optional dot followed by zero or more digits (allows "123." and "123.45")
+--   - |\.\d+     : Or a leading dot followed by one or more digits (allows ".45")
 --
--- ✅ Allows values like: `100`, `2345.67`
--- ❌ Filters out: `'abc'`, `'12a'`, `'--'`, `''`
+-- Matches (examples): "123", "0", "12.34", "0.4", ".4", "123.", "-1", "-.5", "001.20"
+-- Does NOT match: "+1" (plus sign), "1,234.56" (commas), "" (empty string), "   " (only whitespace), "abc"
+--
+-- Important note:
+--   In some SQL regex implementations '.' is a wildcard. To strictly match a literal decimal
+--   point and avoid unintended matches, prefer the escaped/literal-dot variant:
+--     '^(-?(?:\d+(?:\.\d*)?|\.\d+))$'
+--
+-- This prevents SQL casting errors when converting to numeric and explicitly treats
+-- empty/whitespace/non-numeric strings as NULL.
 --
 -- This prevents SQL casting errors when converting to `numeric`.
 
@@ -365,7 +375,7 @@ property_tax_mapper as (
         y.year as year_string,
         y._id as year_id,
         case 
-            when ptm.value ~ '^\d+(\.\d+)?$' then ptm.value::numeric
+            when ptm.value ~ '^(-?(\d+(.\d*)?|.\d+))$' then ptm.value::numeric
             else null
         end as value
     from {{ source('cityfinance_prod','propertytaxopmappers') }} ptm

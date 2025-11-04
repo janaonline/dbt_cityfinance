@@ -112,7 +112,7 @@ property_tax_mapper as (
         y.year as year_string,
         y._id as year_id,
         case 
-            when ptm.value ~ '^\d+(\.\d+)?$' then ptm.value::numeric
+            when ptm.value ~ '^(-?(\d+(.\d*)?|.\d+))$' then ptm.value::numeric
             else null
         end as value
     from {{ source('cityfinance_prod','propertytaxopmappers') }} ptm
