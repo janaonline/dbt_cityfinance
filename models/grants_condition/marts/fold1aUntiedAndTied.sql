@@ -13,7 +13,7 @@
 -- ============================================================================
 
 select
-    f."State Name",  -- State name for the ULB
+    f.state_name,  -- State name for the ULB
     f.iso_code as "iso_code",  -- ISO code for the state
     y.year as "Year",  -- Financial year
 
@@ -57,11 +57,11 @@ join {{ source('cityfinance_prod','years') }} y
     on f.design_year_id = y._id
 
 group by
-    f."State Name",
+    f.state_name,
     f.iso_code,
     y.year,
     f."Property tax State GSDP"
 
 order by
-    f."State Name",
+    f.state_name,
     y.year

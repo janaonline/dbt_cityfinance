@@ -111,10 +111,7 @@ property_tax_mapper as (
         ptm.ulb,
         y.year as year_string,
         y._id as year_id,
-        case 
-            when ptm.value ~ '^(-?(\d+(.\d*)?|.\d+))$' then ptm.value::numeric
-            else null
-        end as value
+        {{ safe_numeric('ptm.value') }} as value
     from {{ source('cityfinance_prod','propertytaxopmappers') }} ptm
     left join {{ source('cityfinance_prod','years') }} y
         on ptm.year = y._id
@@ -149,17 +146,11 @@ growth_values as (
 
     -- Year T-1
     left join years y_A
-        on y_A.year = (
-            (substring(uy.design_year from 1 for 4)::integer - 1)::text || '-' ||
-            (substring(uy.design_year from 6 for 2)::integer - 1)::text
-        )
+        on y_A.year = {{ design_year_minus('uy.design_year', 1) }}
 
     -- Year T-2
     left join years y_B
-        on y_B.year = (
-            (substring(uy.design_year from 1 for 4)::integer - 2)::text || '-' ||
-            (substring(uy.design_year from 6 for 2)::integer - 2)::text
-        )
+        on y_B.year = {{ design_year_minus('uy.design_year', 2) }}
 
     -- Property tax values
     left join property_tax_mapper ptm_A
@@ -259,7 +250,7 @@ odf_certifications as (
 )
 
 select
-    s.state_name as "State Name",  -- State name for the ULB
+    s.state_name,                  -- State name for the ULB
     s.state_id as state_id,        -- State ID
     ic.iso_code as "iso_code",     -- ISO code for the state
     uy.ulb_name as "ULB Name",     -- ULB name
@@ -349,3 +340,5 @@ left join gfc_certifications gfc
 left join odf_certifications odf
     on uy.ulb_id = odf.ulb
     and uy.design_year_id = odf.design_year
+
+order by s.state_name, uy.ulb_name, uy.design_year

@@ -305,32 +305,7 @@ property_tax_submitted as (
 --   - `1.17` corresponds specifically to "Property Tax Collection" data.
 -- ✅ This ensures we're only picking the correct financial indicator for analysis.
 
--- ============================================================================
--- 🧹 Numeric Value Cleaning Using Regex
--- ============================================================================
--- The line:
---     when ptm.value ~ '^(-?(\d+(.\d*)?|.\d+))$' then ptm.value::numeric
--- ensures only clean, numeric values are considered for further computation.
---
--- Breakdown of regex '^(-?(\d+(.\d*)?|.\d+))$':
---   - ^ and $    : Anchor the match to the entire string
---   - -?         : Optional minus sign (allows negative numbers)
---   - \d+        : One or more digits (e.g., "123")
---   - (.\d*)?    : Optional dot followed by zero or more digits (allows "123." and "123.45")
---   - |\.\d+     : Or a leading dot followed by one or more digits (allows ".45")
---
--- Matches (examples): "123", "0", "12.34", "0.4", ".4", "123.", "-1", "-.5", "001.20"
--- Does NOT match: "+1" (plus sign), "1,234.56" (commas), "" (empty string), "   " (only whitespace), "abc"
---
--- Important note:
---   In some SQL regex implementations '.' is a wildcard. To strictly match a literal decimal
---   point and avoid unintended matches, prefer the escaped/literal-dot variant:
---     '^(-?(?:\d+(?:\.\d*)?|\.\d+))$'
---
--- This prevents SQL casting errors when converting to numeric and explicitly treats
--- empty/whitespace/non-numeric strings as NULL.
---
--- This prevents SQL casting errors when converting to `numeric`.
+
 
 -- ============================================================================
 -- 📆 Year Mapping and Filtering
@@ -374,10 +349,7 @@ property_tax_mapper as (
         ptm.ulb,
         y.year as year_string,
         y._id as year_id,
-        case 
-            when ptm.value ~ '^(-?(\d+(.\d*)?|.\d+))$' then ptm.value::numeric
-            else null
-        end as value
+        {{ safe_numeric('ptm.value') }} as value
     from {{ source('cityfinance_prod','propertytaxopmappers') }} ptm
     left join {{ source('cityfinance_prod','years') }} y
         on ptm.year = y._id
@@ -466,17 +438,11 @@ growth_values as (
 
     -- Year T-1
     left join years y_A
-        on y_A.year = (
-            (substring(uy.design_year from 1 for 4)::integer - 1)::text || '-' ||
-            (substring(uy.design_year from 6 for 2)::integer - 1)::text
-        )
+        on y_A.year = {{ design_year_minus('uy.design_year', 1) }}
 
     -- Year T-2
     left join years y_B
-        on y_B.year = (
-            (substring(uy.design_year from 1 for 4)::integer - 2)::text || '-' ||
-            (substring(uy.design_year from 6 for 2)::integer - 2)::text
-        )
+        on y_B.year = {{ design_year_minus('uy.design_year', 2) }}
 
     -- Property tax values
     left join property_tax_mapper ptm_A
@@ -548,7 +514,7 @@ baseline_ulbs as (
 )
 
 select
-    s.state_name as "State Name",  -- State name for the ULB
+    s.state_name,  -- State name for the ULB
     s.state_id as state_id,        -- State ID
     ic.iso_code as "iso_code",     -- ISO code for the state
     uy.ulb_name as "ULB Name",     -- ULB name
@@ -639,3 +605,5 @@ left join dur_expenditure de
     and uy.design_year_id = de.design_year_id
 left join baseline_ulbs bu
     on uy.ulb_id = bu.ulb
+
+order by s.state_name, uy.design_year

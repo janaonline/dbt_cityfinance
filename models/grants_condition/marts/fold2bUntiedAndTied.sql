@@ -73,10 +73,7 @@ total_property_tax_collection as (
         ptm.ulb,
         y.year as year_string,
         y._id as year_id,
-        case 
-            when ptm.value ~ '^(-?(\d+(.\d*)?|.\d+))$' then ptm.value::numeric
-            else null
-        end as value
+        {{ safe_numeric('ptm.value') }} as value
     from {{ source('cityfinance_prod','propertytaxopmappers') }} ptm
     left join {{ source('cityfinance_prod','years') }} y
         on ptm.year = y._id
@@ -90,10 +87,7 @@ current_property_tax_collection as (
         ptm.ulb,
         y.year as year_string,
         y._id as year_id,
-        case 
-            when ptm.value ~ '^(-?(\d+(.\d*)?|.\d+))$' then ptm.value::numeric
-            else null
-        end as value
+        {{ safe_numeric('ptm.value') }} as value
     from {{ source('cityfinance_prod','propertytaxopmappers') }} ptm
     left join {{ source('cityfinance_prod','years') }} y
         on ptm.year = y._id
@@ -103,7 +97,7 @@ current_property_tax_collection as (
 
 select
     -- State and ULB identifiers
-    s.state_name as "State Name",
+    s.state_name,
     s.state_id as state_id,
     ic.iso_code as "iso_code",
     uy.ulb_name as "ULB Name",
@@ -170,19 +164,13 @@ left join state_gsdp g
 
 -- Join for T-2 year (design_year - 2)
 left join years y_B
-    on y_B.year = (
-        (substring(uy.design_year from 1 for 4)::integer - 2)::text || '-' ||
-        lpad((substring(uy.design_year from 6 for 2)::integer - 2)::text, 2, '0')
-    )
+    on y_B.year = {{ design_year_minus('uy.design_year', 2) }}
 left join total_property_tax_collection ttc_B
     on uy.ulb_id = ttc_B.ulb and y_B.year_id = ttc_B.year_id    
 
 -- Join for T-1 year (design_year - 1)
 left join years y_A
-    on y_A.year = (
-        (substring(uy.design_year from 1 for 4)::integer - 1)::text || '-' ||
-        lpad((substring(uy.design_year from 6 for 2)::integer - 1)::text, 2, '0')
-    )
+    on y_A.year = {{ design_year_minus('uy.design_year', 1) }}
 left join total_property_tax_collection ttc_A
     on uy.ulb_id = ttc_A.ulb and y_A.year_id = ttc_A.year_id
 

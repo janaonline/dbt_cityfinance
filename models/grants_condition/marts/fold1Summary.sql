@@ -25,7 +25,7 @@ states as (
 ulb_count as (
     -- Count of active ULBs per state (across all years)
     select
-        s.state_name as "State Name",
+        s.state_name,
         count(a.ulb_id) as "No. of ULBs"
     from active_ulbs a
     join states s
@@ -35,7 +35,7 @@ ulb_count as (
 
 select
     -- Name of the state (e.g., Karnataka, Maharashtra)
-    n."State Name",
+    n.state_name,
 
     -- ISO code: A unique identifier for each state (e.g., KA for Karnataka)
     n.iso_code,
@@ -90,15 +90,15 @@ from
 
     -- Join with UA summary table (from fold1aUAs model) on state, iso_code, and year
     left join {{ ref('fold1aUAs') }} u
-        on n."State Name" = u."State Name"
+        on n.state_name = u.state_name
         and n.iso_code = u.iso_code
         and n."Year" = u."Year"
     -- Join with ulb_count to get total active ULBs per state
     left join ulb_count uc
-        on n."State Name" = uc."State Name"
+        on n.state_name = uc.state_name
 
 -- Order results by state and year for easier analysis
-order by n."State Name", n."Year"
+order by n.state_name, n."Year"
 
 /*
     Model: fold1Summary.sql
