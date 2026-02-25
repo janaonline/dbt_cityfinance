@@ -54,6 +54,15 @@ models:
         +schema: grants_condition_prod         # All marts models go to this schema
         +tags: ['grants_condition', 'marts']   # Add tags for selection
         +materialized: table                   # Materialize as tables by default
+    grants_allocation:
+      #staging:
+        #+schema: grants_allocation_staging
+        #+tags: ['grants_allocation', 'staging']
+        #+materialized: table
+      marts:
+        +schema: grants_allocation_prod         # All marts models go to this schema
+        +tags: ['grants_allocation', 'marts']   # Add tags for selection
+        +materialized: table                   # Materialize as tables by default        
   elementary:
     +schema: "elementary"                      # Elementary package models go to this schema
 

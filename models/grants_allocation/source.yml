@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: cf_grants_allocation
+    schema: grants_allocation_prod
+    tables: 
+      - name: grants_allocation_statewise 
+        identifier: grants_allocation_statewise
+      - name: grants_allocation_yearly
+        identifier: grants_allocation_yearly               
