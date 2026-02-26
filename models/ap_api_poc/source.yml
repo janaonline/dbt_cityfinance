@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: cf_ap_api_poc
+    schema: cf_requests
+    tables: 
+      - name: datacollections 
+        identifier: datacollections
+      - name: lineitemlegends
+        identifier: lineitemlegends
+      - name: states
+        identifier: states
+      - name: ulbs
+        identifier: ulbs
+      - name: years
+        identifier: years
+
+                     

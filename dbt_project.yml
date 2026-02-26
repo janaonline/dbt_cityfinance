@@ -62,7 +62,14 @@ models:
       marts:
         +schema: grants_allocation_prod         # All marts models go to this schema
         +tags: ['grants_allocation', 'marts']   # Add tags for selection
-        +materialized: table                   # Materialize as tables by default        
+        +materialized: table                   # Materialize as tables by default
+    
+    ap_api_poc: # to run the AP API POC models : dbt run --select tag:ap_api_poc
+      marts:
+        +schema: cf_requests             # All marts models go to this schema
+        +tags: ['ap_api_poc', 'marts']   # Add tags for selection
+        +materialized: table             # Materialize as tables by default
+
   elementary:
     +schema: "elementary"                      # Elementary package models go to this schema
 
@@ -75,4 +82,4 @@ seeds:
 
 # =============================================================================
 # End of dbt_project.yml
-#
+# =============================================================================
