@@ -20,10 +20,13 @@ datacollections AS (
     FROM {{ source('cf_ap_api_poc', 'datacollections') }}
 ),
 
--- staging table containing the mapping of major/sub codes to names
+-- 🔹 inline the lineitemlegends transformation (removed view dependency)
 lineitemlegends AS (
-    SELECT *
-    FROM {{ ref('stg_ap_api_lineitemlegends') }}
+    SELECT
+        FLOOR("subCode")::int AS subCode,
+        FLOOR("majorCode")::int AS majorCode,
+        name
+    FROM {{ source('cf_ap_api_poc', 'lineitemlegends') }}
 ),
 
 -- lookup tables for ULBs, states and years

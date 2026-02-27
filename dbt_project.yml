@@ -69,9 +69,6 @@ models:
         +schema: cf_requests             # All marts models go to this schema
         +tags: ['ap_api_poc']            # Add tags for selection
         +materialized: table             # Materialize as tables by default
-      staging:
-        +schema: cf_requests
-        +materialized: view
 
   elementary:
     +schema: "elementary"                      # Elementary package models go to this schema
