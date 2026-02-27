@@ -23,23 +23,23 @@ datacollections AS (
 -- staging table containing the mapping of major/sub codes to names
 lineitemlegends AS (
     SELECT *
-    FROM {{ ref('stg_lineitemlegends') }}
+    FROM {{ ref('stg_ap_api_lineitemlegends') }}
 ),
 
 -- lookup tables for ULBs, states and years
 ulbs AS (
     SELECT *
-    FROM {{ source('cf_ap_api_poc', 'ulbs') }}
+    FROM {{ source('cityfinance_prod', 'ulbs') }}
 ),
 
 states AS (
     SELECT *
-    FROM {{ source('cf_ap_api_poc', 'states') }}
+    FROM {{ source('cityfinance_prod', 'states') }}
 ),
 
 years AS (
     SELECT *
-    FROM {{ source('cf_ap_api_poc', 'years') }}
+    FROM {{ source('cityfinance_prod', 'years') }}
 ),
 
 -- 🔹 explode the JSON object in each datacollection row
