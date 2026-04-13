@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: afs_digitisation
+    schema: cf_prod
+    tables: 
+      - name: afs_xl_files 
+        identifier: afs_xl_files
+
+                     
