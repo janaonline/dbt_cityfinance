@@ -72,7 +72,7 @@ models:
 
     afs_digitisation: # to run the afs digitisation models : dbt run --select tag:afs_digitisation
       marts:
-        +schema: cf_requests             # All marts models go to this schema
+        #+schema: cf_requests             # All marts models go to this schema
         +tags: ['afs_digitisation']            # Add tags for selection
         +materialized: table             # Materialize as tables by default    
 
