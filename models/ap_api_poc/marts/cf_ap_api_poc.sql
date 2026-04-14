@@ -25,7 +25,10 @@ lineitemlegends AS (
     SELECT
         FLOOR("subCode")::int AS subCode,
         FLOOR("majorCode")::int AS majorCode,
-        name
+        CASE
+            WHEN name IS NULL THEN NULL
+            ELSE upper(left(lower(name), 1)) || substring(lower(name) FROM 2)
+        END AS name
     FROM {{ source('cf_ap_api_poc', 'lineitemlegends') }}
 ),
 
@@ -72,7 +75,7 @@ final_data AS (
 
         -- derive head of account based on the pattern of majorCode
         CASE
-            WHEN majorCode::text LIKE '1%' THEN 'Income'
+            WHEN majorCode::text LIKE '1%' THEN 'Revenue'
             WHEN majorCode::text LIKE '2%' THEN 'Expenditure'
             WHEN majorCode::text LIKE '3%' THEN 'Liability'
             WHEN majorCode::text LIKE '4%' THEN 'Asset'

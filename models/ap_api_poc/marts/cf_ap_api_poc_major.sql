@@ -19,7 +19,7 @@ SELECT
 
     -- Derive head of account based on major code patterns
     CASE
-    WHEN majorCode::text LIKE '1%' THEN 'Income'
+    WHEN majorCode::text LIKE '1%' THEN 'Revenue'
     WHEN majorCode::text LIKE '2%' THEN 'Expenditure'
     WHEN majorCode::text LIKE '3%' THEN 'Liability'
     WHEN majorCode::text LIKE '4%' THEN 'Asset'
