@@ -33,6 +33,11 @@ processed_afs AS (
             WHEN afs_json IS NOT NULL THEN afs_json ->> 'digitizationStatus'
             ELSE ulb_json ->> 'digitizationStatus'
         END AS digitization_status,
+        -- Logic for uploaded_by
+        CASE 
+            WHEN afs_json IS NOT NULL THEN 'afs'
+            ELSE 'ulb'
+        END AS uploaded_by,
         CASE 
             WHEN afs_json IS NOT NULL THEN afs_json ->> 'noOfPages'
             ELSE ulb_json ->> 'noOfPages'
@@ -88,6 +93,7 @@ SELECT
     m.year AS Financial_Year,
     p.doc_type,
     p.audit_type,
+    p.uploaded_by,
     BTRIM(p.digitization_status) AS digitization_status,
     CASE 
         WHEN BTRIM(p.raw_pages) ~ '^[0-9]+$' THEN BTRIM(p.raw_pages)::int 
