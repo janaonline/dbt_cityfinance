@@ -12,14 +12,8 @@ WITH source_data AS (
         digitization_pages,
         population_category
     FROM {{ ref('afs_xl_files_report') }}
-    WHERE BTRIM(COALESCE(financial_year, '')) IN (
-        '2019-20',
-        '2020-21',
-        '2021-22',
-        '2022-23',
-        '2023-24',
-        '2024-25'
-    )
+     WHERE BTRIM(COALESCE(financial_year, '')) ~ '^[0-9]{4}-[0-9]{2}$'
+      AND LEFT(BTRIM(financial_year), 4)::int >= 2019
       AND COALESCE(BTRIM(doc_type), '') <> ''
 ),
 
