@@ -51,6 +51,7 @@ SELECT
     file_processed_on_detailed, 
     file_processed_on_month_year, 
     processed_time_ago,
+    1 AS total_count,
     -- The consistency check logic
     CASE 
         WHEN bs_status = 'digitized' AND ie_status = 'digitized'

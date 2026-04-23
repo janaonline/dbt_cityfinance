@@ -17,8 +17,8 @@ SELECT
     ulb_code,
     state_name,
     iso_code,
-
     population_category,
+    1 AS total_count,
     -- 1. 3 year contiguous data (2019-20 to 2021-22)
     CASE 
         WHEN COUNT(CASE WHEN financial_year IN ('2019-20', '2020-21', '2021-22') AND is_schedules_digitized_consistent = 1 THEN 1 END) = 3 
@@ -43,4 +43,4 @@ SELECT
     -- Runtime timestamp for dashboard freshness
     TO_CHAR(now() AT TIME ZONE 'Asia/Kolkata', 'FMMonth DD YYYY "at" HH12:MI am') as "updated_at"
 FROM base_data
-GROUP BY 1, 2, 3, 4, 5
+GROUP BY 1, 2, 3, 4, 5, 6
