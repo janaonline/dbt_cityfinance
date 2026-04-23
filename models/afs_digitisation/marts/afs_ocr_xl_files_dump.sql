@@ -104,6 +104,14 @@ ulbs AS (
       AND u."isPublish" = 'true'
 ),
 
+iso_codes as (
+    -- ISO codes for states
+    select
+        state,
+        iso_code
+    from {{ source('cityfinance_prod','iso_codes') }}
+),
+
 years AS (
     SELECT _id, year 
     FROM {{ source('cityfinance_prod', 'years') }}
@@ -138,6 +146,7 @@ SELECT
     m.ulb_name,
     m.ulb_code,
     s.name AS state_name,
+    ic.iso_code,
     m.year AS Financial_Year,
     CASE 
         WHEN m.doc_type = 'bal_sheet'           THEN 'Balance Sheet'
@@ -168,4 +177,5 @@ FROM
         AND m.year_id = p.year 
         AND m.doc_type = p.doc_type
     LEFT JOIN states s ON m.state_id = s._id
+    LEFT JOIN iso_codes ic ON s.name = ic.state
 ORDER BY s.name, m.ulb_name, m.year, m.doc_type

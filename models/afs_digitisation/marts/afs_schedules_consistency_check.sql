@@ -5,6 +5,7 @@ WITH base_data AS (
         ulb_name, 
         ulb_code, 
         state_name, 
+        iso_code,
         financial_year,
         audit_type, 
         population_category, 
@@ -22,6 +23,7 @@ ulb_year_summary AS (
         ulb_name,
         ulb_code,
         state_name,
+        iso_code,
         financial_year,
         population_category,
         -- We take the most recent processing info available for the ULB/Year
@@ -35,7 +37,7 @@ ulb_year_summary AS (
         MAX(CASE WHEN doc_type = 'Income & Expenditure Schedules' THEN digitization_status END) as ie_status,
         MAX(CASE WHEN doc_type = 'Income & Expenditure Schedules' THEN audit_type END) as ie_audit
     FROM base_data
-    GROUP BY 1, 2, 3, 4, 5
+    GROUP BY 1, 2, 3, 4, 5, 6
 )
 
 -- 2. Apply the single-row logic and consistency check
@@ -43,6 +45,7 @@ SELECT
     ulb_name, 
     ulb_code, 
     state_name, 
+    iso_code,
     financial_year,
     population_category, 
     file_processed_on_detailed, 

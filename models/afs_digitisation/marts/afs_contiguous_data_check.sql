@@ -5,6 +5,7 @@ WITH base_data AS (
         ulb_name, 
         ulb_code, 
         state_name, 
+        iso_code,
         population_category,
         financial_year,
         is_schedules_digitized_consistent
@@ -15,6 +16,8 @@ SELECT
     ulb_name,
     ulb_code,
     state_name,
+    iso_code,
+
     population_category,
     -- 1. 3 year contiguous data (2019-20 to 2021-22)
     CASE 
@@ -40,4 +43,4 @@ SELECT
     -- Runtime timestamp for dashboard freshness
     TO_CHAR(now() AT TIME ZONE 'Asia/Kolkata', 'FMMonth DD YYYY "at" HH12:MI am') as "updated_at"
 FROM base_data
-GROUP BY 1, 2, 3, 4
+GROUP BY 1, 2, 3, 4, 5

@@ -2,7 +2,7 @@
 
 WITH source_data AS (
     SELECT DISTINCT
-        ulb_name, ulb_code, state_name, financial_year, doc_type, audit_type, 
+        ulb_name, ulb_code, state_name, iso_code, financial_year, doc_type, audit_type, 
         digitization_status, digitization_pages, population_category,
         uploaded_by, file_processed_on_detailed, file_processed_on_month_year, processed_time_ago
     FROM {{ ref('afs_ocr_xl_files_dump') }}
@@ -62,7 +62,7 @@ deduped AS (
 )
 
 SELECT
-    ulb_name, ulb_code, state_name, financial_year, doc_type, audit_type,
+    ulb_name, ulb_code, state_name, iso_code, financial_year, doc_type, audit_type,
     digitization_status, digitization_pages, population_category,
     selection_reason, duplicate_count,
     uploaded_by, file_processed_on_detailed, file_processed_on_month_year, processed_time_ago,
