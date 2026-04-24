@@ -6,5 +6,8 @@ sources:
     tables: 
       - name: afs_xl_files 
         identifier: afs_xl_files
+      - name: ledgerlogs 
+        identifier: ledgerlogs
+        
 
                      
