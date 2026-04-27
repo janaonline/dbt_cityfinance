@@ -59,18 +59,52 @@ deduped AS (
             ORDER BY preference_rank, CASE WHEN digitization_pages IS NULL THEN 1 ELSE 0 END, digitization_pages DESC
         ) AS rn
     FROM scored
+),
+
+annual_accounts_status AS (
+    SELECT
+        ulb_code,
+        financial_year,
+        MAX(status) AS annual_account_status
+    FROM {{ ref('afs_annual_accounts_overall_summary') }}
+    WHERE BTRIM(COALESCE(financial_year, '')) ~ '^[0-9]{4}-[0-9]{2}$'
+      AND COALESCE(BTRIM(ulb_code), '') <> ''
+    GROUP BY
+        ulb_code,
+        financial_year
 )
 
+
 SELECT
-    ulb_name, ulb_code, state_name, iso_code, financial_year, doc_type, audit_type,
-    digitization_status, digitization_pages, population_category,
-    selection_reason, duplicate_count,
-    uploaded_by, file_processed_on_detailed, file_processed_on_month_year, processed_time_ago,
+    d.ulb_name,
+    d.ulb_code,
+    d.state_name,
+    d.iso_code,
+    d.financial_year,
+    d.doc_type,
+    d.audit_type,
+    d.digitization_status,
+    d.digitization_pages,
+    d.population_category,
+
+    aas.annual_account_status,
+
+    d.selection_reason,
+    d.duplicate_count,
+    d.uploaded_by,
+    d.file_processed_on_detailed,
+    d.file_processed_on_month_year,
+    d.processed_time_ago,
+
     -- Static row count for Superset metrics
     1 AS total_count,
     -- Status check count
     CASE WHEN digitization_status IS NULL THEN 0 ELSE 1 END AS status_check_count,
     -- Run-time timestamp for the dashboard
     TO_CHAR(now() AT TIME ZONE 'Asia/Kolkata', 'FMMonth DD YYYY "at" HH12:MI am') as "updated_at"
-FROM deduped
-WHERE rn = 1
+
+FROM deduped d
+LEFT JOIN annual_accounts_status aas
+    ON d.ulb_code = aas.ulb_code
+   AND d.financial_year = aas.financial_year
+WHERE d.rn = 1

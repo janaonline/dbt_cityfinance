@@ -13,7 +13,8 @@ WITH base_data AS (
         file_processed_on_month_year, 
         processed_time_ago,
         doc_type,
-        digitization_status
+        digitization_status,
+        annual_account_status
     FROM {{ ref('afs_ocr_summary') }}
 ),
 
@@ -26,6 +27,10 @@ ulb_year_summary AS (
         iso_code,
         financial_year,
         population_category,
+
+        -- Annual account status from afs_ocr_summary
+        MAX(annual_account_status) AS annual_accounts_status,
+
         -- We take the most recent processing info available for the ULB/Year
         MAX(file_processed_on_detailed) as file_processed_on_detailed,
         MAX(file_processed_on_month_year) as file_processed_on_month_year,
@@ -48,6 +53,7 @@ SELECT
     iso_code,
     financial_year,
     population_category, 
+    annual_accounts_status,
     file_processed_on_detailed, 
     file_processed_on_month_year, 
     processed_time_ago,

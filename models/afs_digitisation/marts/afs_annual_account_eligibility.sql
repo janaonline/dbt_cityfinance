@@ -34,11 +34,8 @@ iso_codes AS (
 years AS (
     SELECT _id AS year_id, year AS financial_year 
     FROM {{ source('cityfinance_prod', 'years') }}
-    -- Optional: filter for specific years if needed, e.g., >= 2019
-   -- WHERE LEFT(BTRIM(year), 4)::int >= 2019
 ),
 
--- Build the base independent structure
 ulb_year_base AS (
     SELECT
         u.ulb_id,
@@ -69,53 +66,78 @@ standardization_logs AS (
     SELECT 
         ulb_id,
         year,
-        -- If isStandardizable is not "No", mark as true
-        CASE 
-            --WHEN "isStandardizable" <> 'No' THEN true 
-            --ELSE false 
-            WHEN "isStandardizable" <> 'No' THEN 'Yes' 
-            ELSE 'No'
-        END AS is_standadized_by_magc
+        NULLIF(BTRIM("isStandardizable"), '') AS is_standardizable
     FROM {{ source('afs_digitisation', 'ledgerlogs') }}
+),
+
+annual_account_status AS (
+    SELECT
+        b.ulb_name,
+        b.ulb_code,
+        b.state_name,
+        b.iso_code,
+        b.financial_year,
+        b.ulb_id,
+        b.year_id,
+
+        CASE 
+            WHEN b.financial_year >= '2023-24' THEN
+                CASE 
+                    WHEN a."currentFormStatus" IN (4, 6) THEN 'eligible'
+                    WHEN a."currentFormStatus" IN (3, 4, 6) THEN 'submitted'
+                    ELSE 'ineligible'
+                END
+            ELSE
+                CASE 
+                    WHEN a.status = 'APPROVED' 
+                         AND a."actionTakenByRole" IN ('MoHUA', 'STATE') 
+                        THEN 'eligible'
+
+                    WHEN a.status IN ('APPROVED', 'PENDING') 
+                         AND a."actionTakenByRole" IN ('MoHUA', 'STATE') 
+                        THEN 'submitted'
+
+                    ELSE 'ineligible'
+                END
+        END AS status,
+
+        CASE 
+            WHEN a.ulb IS NULL THEN 0 
+            ELSE 1 
+        END AS has_annual_account_record
+
+    FROM ulb_year_base b
+    LEFT JOIN annual_accounts a 
+        ON b.ulb_id = a.ulb 
+       AND b.year_id = a.design_year
 )
 
-
 SELECT
-    b.ulb_name,
-    b.ulb_code,
-    b.state_name,
-    b.iso_code,
-    b.financial_year,
-    CASE 
-        -- Logic for Financial Year 2023-24 and onwards
-        WHEN b.financial_year >= '2023-24' THEN
-            CASE 
-                WHEN a."currentFormStatus" IN (4, 6) THEN 'eligible'
-                WHEN a."currentFormStatus" IN (3, 4, 6) THEN 'submitted'
-                ELSE 'ineligible'
-            END
-            
-        -- Logic for Financial Year before 2023-24
-        ELSE
-            CASE 
-                WHEN a.status = 'APPROVED' AND a."actionTakenByRole" IN ('MoHUA', 'STATE') 
-                    THEN 'eligible'
-                WHEN (a.status IN ('APPROVED', 'PENDING')) AND a."actionTakenByRole" IN ('MoHUA', 'STATE') 
-                    THEN 'submitted'
-                ELSE 'ineligible'
-            END
-    END AS status,
+    aas.ulb_name,
+    aas.ulb_code,
+    aas.state_name,
+    aas.iso_code,
+    aas.financial_year,
+    aas.status,
 
-    --COALESCE(l.is_standadized_by_magc, false) AS is_standadized_by_magc,
-    COALESCE(l.is_standadized_by_magc, 'No') AS is_standadized_by_magc,
-    
-    -- Added a helper column to see if a record even exists in the source
-    CASE WHEN a.ulb IS NULL THEN 0 ELSE 1 END AS has_annual_account_record
+    CASE
+        WHEN l.is_standardizable IS NOT NULL 
+             AND LOWER(l.is_standardizable) <> 'no'
+            THEN 'standardized'
 
-FROM ulb_year_base b
-LEFT JOIN annual_accounts a 
-    ON b.ulb_id = a.ulb 
-    AND b.year_id = a.design_year
+        WHEN LOWER(l.is_standardizable) = 'no'
+            THEN 'error'
+
+        WHEN l.is_standardizable IS NULL 
+             AND aas.status = 'eligible'
+            THEN 'yet to standardized'
+
+        ELSE NULL
+    END AS is_standadized_by_magc,
+
+    aas.has_annual_account_record
+
+FROM annual_account_status aas
 LEFT JOIN standardization_logs l 
-    ON b.ulb_id = l.ulb_id 
-    AND b.financial_year = l.year
+    ON aas.ulb_id = l.ulb_id 
+   AND aas.financial_year = l.year
