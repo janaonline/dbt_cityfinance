@@ -32,7 +32,10 @@ iso_codes AS (
 ),
 
 years AS (
-    SELECT _id AS year_id, year AS financial_year 
+    SELECT 
+        _id AS year_id,
+        year AS financial_year,
+        CAST(SPLIT_PART(year, '-', 1) AS INTEGER) AS financial_year_start
     FROM {{ source('cityfinance_prod', 'years') }}
 ),
 
@@ -45,29 +48,162 @@ ulb_year_base AS (
         i.iso_code,
         u.population_category,
         y.year_id,
-        y.financial_year
+        y.financial_year,
+        y.financial_year_start
     FROM ulbs u
     CROSS JOIN years y
     LEFT JOIN states s ON u.state_id = s._id
     LEFT JOIN iso_codes i ON s.name = i.state
 ),
 
-annual_accounts AS (
+annual_accounts_raw AS (
     SELECT 
-        ulb,
-        design_year,
-        "currentFormStatus",
-        status,
-        "actionTakenByRole"
+        ulb AS ulb_id,
+
+        NULLIF(BTRIM(status), '') AS top_level_status,
+        NULLIF(BTRIM("actionTakenByRole"), '') AS action_taken_by_role,
+
+        CASE
+            WHEN NULLIF(BTRIM("currentFormStatus"::TEXT), '') ~ '^[0-9]+(\.[0-9]+)?$'
+                THEN NULLIF(BTRIM("currentFormStatus"::TEXT), '')::NUMERIC
+            ELSE NULL
+        END AS current_form_status,
+
+        COALESCE(
+            audited::JSONB -> 'year' ->> '$oid',
+            audited::JSONB ->> 'year'
+        ) AS audited_year_id,
+
+        NULLIF(
+            BTRIM(
+                COALESCE(
+                    audited::JSONB ->> 'status',
+                    status
+                )
+            ),
+            ''
+        ) AS audited_raw_status,
+
+        COALESCE(
+            "unAudited"::JSONB -> 'year' ->> '$oid',
+            "unAudited"::JSONB ->> 'year'
+        ) AS unaudited_year_id,
+
+        NULLIF(
+            BTRIM(
+                COALESCE(
+                    "unAudited"::JSONB ->> 'status',
+                    status
+                )
+            ),
+            ''
+        ) AS unaudited_raw_status
+
     FROM {{ source('cityfinance_prod', 'annualaccountdatas') }}
 ),
 
-standardization_logs AS (
-    SELECT 
+audited_records AS (
+    SELECT
+        aar.ulb_id,
+        y.year_id,
+
+        CASE
+            WHEN y.financial_year_start <= 2020 THEN
+                CASE
+                    WHEN UPPER(aar.audited_raw_status) = 'APPROVED'
+                         AND UPPER(aar.action_taken_by_role) IN ('MOHUA', 'STATE')
+                        THEN 'eligible'
+
+                    WHEN UPPER(aar.audited_raw_status) = 'PENDING'
+                         AND UPPER(aar.action_taken_by_role) IN ('MOHUA', 'STATE')
+                        THEN 'submitted'
+
+                    ELSE 'ineligible'
+                END
+
+            WHEN y.financial_year_start >= 2021 THEN
+                CASE
+                    WHEN aar.current_form_status IN (3, 4, 6)
+                        THEN 'eligible'
+                    ELSE 'ineligible'
+                END
+
+            ELSE 'ineligible'
+        END AS audited_status
+
+    FROM annual_accounts_raw aar
+    INNER JOIN years y 
+        ON aar.audited_year_id = y.year_id
+    WHERE aar.audited_year_id IS NOT NULL
+),
+
+audited_status_by_ulb_year AS (
+    SELECT
         ulb_id,
-        year,
-        NULLIF(BTRIM("isStandardizable"), '') AS is_standardizable
-    FROM {{ source('afs_digitisation', 'ledgerlogs') }}
+        year_id,
+
+        CASE
+            WHEN BOOL_OR(audited_status = 'eligible') THEN 'eligible'
+            WHEN BOOL_OR(audited_status = 'submitted') THEN 'submitted'
+            ELSE 'ineligible'
+        END AS audited_status,
+
+        1 AS has_audited_record
+
+    FROM audited_records
+    GROUP BY ulb_id, year_id
+),
+
+unaudited_records AS (
+    SELECT
+        aar.ulb_id,
+        y.year_id,
+
+        CASE
+            WHEN y.financial_year_start <= 2021 THEN
+                CASE
+                    WHEN UPPER(aar.unaudited_raw_status) = 'APPROVED'
+                         AND UPPER(aar.action_taken_by_role) IN ('MOHUA', 'STATE')
+                        THEN 'eligible'
+
+                    WHEN UPPER(aar.unaudited_raw_status) = 'PENDING'
+                         AND UPPER(aar.action_taken_by_role) IN ('MOHUA', 'STATE')
+                        THEN 'submitted'
+
+                    ELSE 'ineligible'
+                END
+
+            WHEN y.financial_year_start >= 2022 THEN
+                CASE
+                    WHEN aar.current_form_status IN (3, 4, 6)
+                        THEN 'eligible'
+                    ELSE 'ineligible'
+                END
+
+            ELSE 'ineligible'
+        END AS unaudited_status
+
+    FROM annual_accounts_raw aar
+    INNER JOIN years y 
+        ON aar.unaudited_year_id = y.year_id
+    WHERE aar.unaudited_year_id IS NOT NULL
+),
+
+unaudited_status_by_ulb_year AS (
+    SELECT
+        ulb_id,
+        year_id,
+
+        CASE
+            WHEN BOOL_OR(unaudited_status = 'eligible') THEN 'eligible'
+            WHEN BOOL_OR(unaudited_status = 'submitted') THEN 'submitted'
+            ELSE 'ineligible'
+        END AS unaudited_status,
+
+        1 AS has_unaudited_record
+
+    FROM unaudited_records
+    GROUP BY ulb_id, year_id
 ),
 
 annual_account_status AS (
@@ -80,64 +216,109 @@ annual_account_status AS (
         b.ulb_id,
         b.year_id,
 
-        CASE 
-            WHEN b.financial_year >= '2023-24' THEN
-                CASE 
-                    WHEN a."currentFormStatus" IN (4, 6) THEN 'eligible'
-                    WHEN a."currentFormStatus" IN (3, 4, 6) THEN 'submitted'
-                    ELSE 'ineligible'
-                END
-            ELSE
-                CASE 
-                    WHEN a.status = 'APPROVED' 
-                         AND a."actionTakenByRole" IN ('MoHUA', 'STATE') 
-                        THEN 'eligible'
-
-                    WHEN a.status IN ('APPROVED', 'PENDING') 
-                         AND a."actionTakenByRole" IN ('MoHUA', 'STATE') 
-                        THEN 'submitted'
-
-                    ELSE 'ineligible'
-                END
-        END AS status,
+        COALESCE(a.audited_status, 'ineligible') AS audited_status,
+        COALESCE(u.unaudited_status, 'ineligible') AS unaudited_status,
 
         CASE 
-            WHEN a.ulb IS NULL THEN 0 
-            ELSE 1 
+            WHEN COALESCE(a.has_audited_record, 0) = 1 
+              OR COALESCE(u.has_unaudited_record, 0) = 1 
+                THEN 1 
+            ELSE 0 
         END AS has_annual_account_record
 
     FROM ulb_year_base b
-    LEFT JOIN annual_accounts a 
-        ON b.ulb_id = a.ulb 
-       AND b.year_id = a.design_year
+    LEFT JOIN audited_status_by_ulb_year a
+        ON b.ulb_id = a.ulb_id
+       AND b.year_id = a.year_id
+    LEFT JOIN unaudited_status_by_ulb_year u
+        ON b.ulb_id = u.ulb_id
+       AND b.year_id = u.year_id
+),
+
+standardization_logs AS (
+    SELECT 
+        ulb_id,
+        year,
+
+        COUNT(*) AS standardization_record_count,
+
+        BOOL_OR(
+            COALESCE(LOWER(BTRIM("isStandardizable"::TEXT)), '') <> 'no'
+        ) AS has_standardized_value,
+
+        BOOL_OR(
+            LOWER(BTRIM("isStandardizable"::TEXT)) = 'no'
+        ) AS has_error_value
+
+    FROM {{ source('afs_digitisation', 'ledgerlogs') }}
+    GROUP BY ulb_id, year
+),
+
+with_standardization AS (
+    SELECT
+        aas.ulb_name,
+        aas.ulb_code,
+        aas.state_name,
+        aas.iso_code,
+        aas.financial_year,
+        aas.audited_status,
+        aas.unaudited_status,
+
+        CASE
+            -- Ledger/file record exists and isStandardizable is NULL, blank, yes, true, etc.
+            -- Anything except explicit 'no' is treated as standardized.
+            WHEN COALESCE(l.has_standardized_value, FALSE) = TRUE
+                THEN 'standardized'
+
+            -- Ledger/file record exists and isStandardizable is explicitly 'no'.
+            WHEN COALESCE(l.has_error_value, FALSE) = TRUE
+                THEN 'error'
+
+            -- No ledger/file record exists, but annual account is eligible.
+            WHEN l.standardization_record_count IS NULL
+                 AND (
+                        aas.audited_status = 'eligible'
+                     OR aas.unaudited_status = 'eligible'
+                 )
+                THEN 'yet to standardized'
+
+            ELSE NULL
+        END AS is_standadized_by_magc,
+
+        aas.has_annual_account_record
+
+    FROM annual_account_status aas
+    LEFT JOIN standardization_logs l 
+        ON aas.ulb_id = l.ulb_id 
+       AND aas.financial_year = l.year
 )
 
 SELECT
-    aas.ulb_name,
-    aas.ulb_code,
-    aas.state_name,
-    aas.iso_code,
-    aas.financial_year,
-    aas.status,
+    ulb_name,
+    ulb_code,
+    state_name,
+    iso_code,
+    financial_year,
+
+    audited_status,
+    unaudited_status,
 
     CASE
-        WHEN l.is_standardizable IS NOT NULL 
-             AND LOWER(l.is_standardizable) <> 'no'
-            THEN 'standardized'
+        WHEN is_standadized_by_magc IN ('standardized', 'error')
+            THEN 'eligible'
 
-        WHEN LOWER(l.is_standardizable) = 'no'
-            THEN 'error'
+        WHEN audited_status = 'eligible'
+          OR unaudited_status = 'eligible'
+            THEN 'eligible'
 
-        WHEN l.is_standardizable IS NULL 
-             AND aas.status = 'eligible'
-            THEN 'yet to standardized'
+        WHEN audited_status = 'submitted'
+          OR unaudited_status = 'submitted'
+            THEN 'submitted'
 
-        ELSE NULL
-    END AS is_standadized_by_magc,
+        ELSE 'ineligible'
+    END AS status,
 
-    aas.has_annual_account_record
+    is_standadized_by_magc,
+    has_annual_account_record
 
-FROM annual_account_status aas
-LEFT JOIN standardization_logs l 
-    ON aas.ulb_id = l.ulb_id 
-   AND aas.financial_year = l.year
+FROM with_standardization

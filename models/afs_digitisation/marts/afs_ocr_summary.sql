@@ -66,7 +66,7 @@ annual_accounts_status AS (
         ulb_code,
         financial_year,
         MAX(status) AS annual_account_status
-    FROM {{ ref('afs_annual_accounts_overall_summary') }}
+    FROM {{ ref('afs_annual_account_eligibility') }}
     WHERE BTRIM(COALESCE(financial_year, '')) ~ '^[0-9]{4}-[0-9]{2}$'
       AND COALESCE(BTRIM(ulb_code), '') <> ''
     GROUP BY
