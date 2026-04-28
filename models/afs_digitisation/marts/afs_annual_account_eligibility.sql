@@ -62,6 +62,28 @@ annual_accounts_raw AS (
 
         NULLIF(BTRIM(status), '') AS top_level_status,
         NULLIF(BTRIM("actionTakenByRole"), '') AS action_taken_by_role,
+        NULLIF(BTRIM("isDraft"), '') AS is_draft,
+        NULLIF(BTRIM(audited::JSONB ->> 'submit_annual_accounts'), '') AS audited_submit_annual_accounts,
+        NULLIF(BTRIM("unAudited"::JSONB ->> 'submit_annual_accounts'), '') AS unaudited_submit_annual_accounts,
+        
+         (
+            NULLIF(NULLIF(LOWER(BTRIM(audited::JSONB #>> '{provisional_data,bal_sheet,pdf,url}')), 'null'), '') IS NOT NULL
+            AND NULLIF(NULLIF(LOWER(BTRIM(audited::JSONB #>> '{provisional_data,bal_sheet_schedules,pdf,url}')), 'null'), '') IS NOT NULL
+            AND NULLIF(NULLIF(LOWER(BTRIM(audited::JSONB #>> '{provisional_data,inc_exp,pdf,url}')), 'null'), '') IS NOT NULL
+            AND NULLIF(NULLIF(LOWER(BTRIM(audited::JSONB #>> '{provisional_data,inc_exp_schedules,pdf,url}')), 'null'), '') IS NOT NULL
+            AND NULLIF(NULLIF(LOWER(BTRIM(audited::JSONB #>> '{provisional_data,cash_flow,pdf,url}')), 'null'), '') IS NOT NULL
+            AND NULLIF(NULLIF(LOWER(BTRIM(audited::JSONB #>> '{provisional_data,auditor_report,pdf,url}')), 'null'), '') IS NOT NULL
+        ) AS audited_has_required_pdf_urls,
+
+        
+        (
+            NULLIF(NULLIF(LOWER(BTRIM("unAudited"::JSONB #>> '{provisional_data,bal_sheet,pdf,url}')), 'null'), '') IS NOT NULL
+            AND NULLIF(NULLIF(LOWER(BTRIM("unAudited"::JSONB #>> '{provisional_data,bal_sheet_schedules,pdf,url}')), 'null'), '') IS NOT NULL
+            AND NULLIF(NULLIF(LOWER(BTRIM("unAudited"::JSONB #>> '{provisional_data,inc_exp,pdf,url}')), 'null'), '') IS NOT NULL
+            AND NULLIF(NULLIF(LOWER(BTRIM("unAudited"::JSONB #>> '{provisional_data,inc_exp_schedules,pdf,url}')), 'null'), '') IS NOT NULL
+            AND NULLIF(NULLIF(LOWER(BTRIM("unAudited"::JSONB #>> '{provisional_data,cash_flow,pdf,url}')), 'null'), '') IS NOT NULL
+        ) AS unaudited_has_required_pdf_urls,
+
 
         CASE
             WHEN NULLIF(BTRIM("currentFormStatus"::TEXT), '') ~ '^[0-9]+(\.[0-9]+)?$'
@@ -107,23 +129,44 @@ audited_records AS (
         aar.ulb_id,
         y.year_id,
 
-        CASE
+          CASE
+          
             WHEN y.financial_year_start <= 2020 THEN
                 CASE
-                    WHEN UPPER(aar.audited_raw_status) = 'APPROVED'
-                         AND UPPER(aar.action_taken_by_role) IN ('MOHUA', 'STATE')
+
+                 -- First gate: audited required PDFs only
+                    WHEN COALESCE(aar.audited_has_required_pdf_urls, FALSE) = FALSE
+                        THEN 'ineligible'
+                   WHEN UPPER(aar.action_taken_by_role) = 'ULB'
+                         AND UPPER(aar.is_draft) = 'FALSE'
+                         AND UPPER(aar.audited_submit_annual_accounts) = 'TRUE'
+                        --  AND UPPER(aar.unaudited_submit_annual_accounts) = 'TRUE'
+                        THEN 'submitted'
+
+                    WHEN UPPER(aar.action_taken_by_role) = 'STATE'
+                         AND UPPER(aar.is_draft) = 'TRUE'
                         THEN 'eligible'
 
-                    WHEN UPPER(aar.audited_raw_status) = 'PENDING'
-                         AND UPPER(aar.action_taken_by_role) IN ('MOHUA', 'STATE')
-                        THEN 'submitted'
+                    WHEN UPPER(aar.action_taken_by_role) = 'STATE'
+                         AND UPPER(aar.is_draft) = 'FALSE'
+                         AND UPPER(aar.audited_raw_status) = 'APPROVED'
+                        THEN 'eligible'
+
+                    WHEN UPPER(aar.action_taken_by_role) = 'MOHUA'
+                         AND UPPER(aar.is_draft) = 'FALSE'
+                         AND UPPER(aar.audited_raw_status) = 'APPROVED'
+                        THEN 'eligible'
 
                     ELSE 'ineligible'
                 END
 
             WHEN y.financial_year_start >= 2021 THEN
                 CASE
+                 -- First gate: audited required PDFs only
+                    WHEN COALESCE(aar.audited_has_required_pdf_urls, FALSE) = FALSE
+                        THEN 'ineligible'
                     WHEN aar.current_form_status IN (3, 4, 6)
+                         AND UPPER(aar.audited_submit_annual_accounts) = 'TRUE'
                         THEN 'eligible'
                     ELSE 'ineligible'
                 END
@@ -160,22 +203,42 @@ unaudited_records AS (
         y.year_id,
 
         CASE
+           
             WHEN y.financial_year_start <= 2021 THEN
-                CASE
-                    WHEN UPPER(aar.unaudited_raw_status) = 'APPROVED'
-                         AND UPPER(aar.action_taken_by_role) IN ('MOHUA', 'STATE')
+                 CASE
+                 -- First gate: unaudited required PDFs only
+                    WHEN COALESCE(aar.unaudited_has_required_pdf_urls, FALSE) = FALSE
+                        THEN 'ineligible'
+                    WHEN UPPER(aar.action_taken_by_role) = 'ULB'
+                         AND UPPER(aar.is_draft) = 'FALSE'
+                         AND UPPER(aar.unaudited_submit_annual_accounts) = 'TRUE'
+                        --  AND UPPER(aar.audited_submit_annual_accounts) = 'TRUE'
+                        THEN 'submitted'
+
+                    WHEN UPPER(aar.action_taken_by_role) = 'STATE'
+                         AND UPPER(aar.is_draft) = 'TRUE'
                         THEN 'eligible'
 
-                    WHEN UPPER(aar.unaudited_raw_status) = 'PENDING'
-                         AND UPPER(aar.action_taken_by_role) IN ('MOHUA', 'STATE')
-                        THEN 'submitted'
+                    WHEN UPPER(aar.action_taken_by_role) = 'STATE'
+                         AND UPPER(aar.is_draft) = 'FALSE'
+                         AND UPPER(aar.unaudited_raw_status) = 'APPROVED'
+                        THEN 'eligible'
+
+                    WHEN UPPER(aar.action_taken_by_role) = 'MOHUA'
+                         AND UPPER(aar.is_draft) = 'FALSE'
+                         AND UPPER(aar.unaudited_raw_status) = 'APPROVED'
+                        THEN 'eligible'
 
                     ELSE 'ineligible'
                 END
 
             WHEN y.financial_year_start >= 2022 THEN
                 CASE
+                -- First gate: unaudited required PDFs only
+                    WHEN COALESCE(aar.unaudited_has_required_pdf_urls, FALSE) = FALSE
+                        THEN 'ineligible'
                     WHEN aar.current_form_status IN (3, 4, 6)
+                         AND UPPER(aar.unaudited_submit_annual_accounts) = 'TRUE'
                         THEN 'eligible'
                     ELSE 'ineligible'
                 END
@@ -212,6 +275,7 @@ annual_account_status AS (
         b.ulb_code,
         b.state_name,
         b.iso_code,
+        b.population_category,
         b.financial_year,
         b.ulb_id,
         b.year_id,
@@ -260,6 +324,7 @@ with_standardization AS (
         aas.ulb_code,
         aas.state_name,
         aas.iso_code,
+        aas.population_category,
         aas.financial_year,
         aas.audited_status,
         aas.unaudited_status,
@@ -299,9 +364,10 @@ SELECT
     state_name,
     iso_code,
     financial_year,
-
+    population_category,
     audited_status,
     unaudited_status,
+    1 AS total_count,
 
     CASE
         WHEN is_standadized_by_magc IN ('standardized', 'error')
