@@ -12,6 +12,7 @@ ulbs AS (
         u.name AS ulb_name, 
         u.state AS state_id, 
         u.code AS ulb_code,
+
         CASE
             WHEN u.population < 100000 THEN '<100K'
             WHEN u.population < 500000 THEN '100K-500K'
@@ -19,7 +20,28 @@ ulbs AS (
             WHEN u.population < 4000000 THEN '1M-4M'
             WHEN u.population >= 4000000 THEN '4M+'
             ELSE 'NA'
-        END AS population_category
+        END AS population_category,
+
+        -- ADDED: numeric sort order for Superset
+        CASE
+            WHEN u.population >= 4000000 THEN 1
+            WHEN u.population >= 1000000 THEN 2
+            WHEN u.population >= 500000 THEN 3
+            WHEN u.population >= 100000 THEN 4
+            WHEN u.population < 100000 THEN 5
+            ELSE 99
+        END AS population_category_sort_order,
+
+        -- ADDED: fallback ordered label for Superset if numeric sorting does not work
+        CASE
+            WHEN u.population >= 4000000 THEN '01 - 4M+'
+            WHEN u.population >= 1000000 THEN '02 - 1M-4M'
+            WHEN u.population >= 500000 THEN '03 - 500K-1M'
+            WHEN u.population >= 100000 THEN '04 - 100K-500K'
+            WHEN u.population < 100000 THEN '05 - <100K'
+            ELSE '99 - NA'
+        END AS population_category_ordered
+        
     FROM {{ source('cityfinance_prod', 'ulbs') }} u
     INNER JOIN states s ON u.state = s._id
     WHERE u."isActive" = 'true' 
@@ -47,6 +69,8 @@ ulb_year_base AS (
         s.name AS state_name,
         i.iso_code,
         u.population_category,
+        u.population_category_sort_order,
+        u.population_category_ordered,
         y.year_id,
         y.financial_year,
         y.financial_year_start
@@ -276,6 +300,8 @@ annual_account_status AS (
         b.state_name,
         b.iso_code,
         b.population_category,
+        b.population_category_sort_order,
+        b.population_category_ordered,
         b.financial_year,
         b.ulb_id,
         b.year_id,
@@ -325,6 +351,8 @@ with_standardization AS (
         aas.state_name,
         aas.iso_code,
         aas.population_category,
+        aas.population_category_sort_order,
+        aas.population_category_ordered,
         aas.financial_year,
         aas.audited_status,
         aas.unaudited_status,
@@ -347,7 +375,7 @@ with_standardization AS (
                  )
                 THEN 'yet to standardized'
 
-            ELSE NULL
+            ELSE 'Ineligible for standardization'
         END AS is_standadized_by_magc,
 
         aas.has_annual_account_record
@@ -365,6 +393,8 @@ SELECT
     iso_code,
     financial_year,
     population_category,
+    population_category_sort_order,
+    population_category_ordered,
     audited_status,
     unaudited_status,
     1 AS total_count,

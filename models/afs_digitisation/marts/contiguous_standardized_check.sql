@@ -7,6 +7,8 @@ WITH base_data AS (
         state_name, 
         iso_code,
         population_category,
+        population_category_sort_order,
+        population_category_ordered,
         financial_year,
         is_standadized_by_magc
     FROM {{ ref('afs_annual_account_eligibility') }}
@@ -18,6 +20,8 @@ SELECT
     state_name,
     iso_code,
     population_category,
+    population_category_sort_order,
+    population_category_ordered,
     1 AS total_count,
     -- 1. 3 year contiguous data (2019-20 to 2021-22)
     CASE 
@@ -43,4 +47,4 @@ SELECT
     -- Runtime timestamp for dashboard freshness
     TO_CHAR(now() AT TIME ZONE 'Asia/Kolkata', 'FMMonth DD YYYY "at" HH12:MI am') as "updated_at"
 FROM base_data
-GROUP BY 1, 2, 3, 4, 5, 6
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
