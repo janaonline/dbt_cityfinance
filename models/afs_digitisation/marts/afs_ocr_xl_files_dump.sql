@@ -90,6 +90,7 @@ ulbs AS (
         u.name, 
         u.state, 
         u.code,
+
         CASE
             WHEN u.population < 100000 THEN '<100K'
             WHEN u.population < 500000 THEN '100K-500K'
@@ -97,9 +98,30 @@ ulbs AS (
             WHEN u.population < 4000000 THEN '1M-4M'
             WHEN u.population >= 4000000 THEN '4M+'
             ELSE 'NA'
-        END AS population_category
+        END AS population_category,
+
+        -- ADDED: numeric sort order for Superset
+        CASE
+            WHEN u.population >= 4000000 THEN 1
+            WHEN u.population >= 1000000 THEN 2
+            WHEN u.population >= 500000 THEN 3
+            WHEN u.population >= 100000 THEN 4
+            WHEN u.population < 100000 THEN 5
+            ELSE 99
+        END AS population_category_sort_order,
+
+        -- ADDED: fallback ordered label for Superset mixed chart
+        CASE
+            WHEN u.population >= 4000000 THEN '01 - 4M+'
+            WHEN u.population >= 1000000 THEN '02 - 1M-4M'
+            WHEN u.population >= 500000 THEN '03 - 500K-1M'
+            WHEN u.population >= 100000 THEN '04 - 100K-500K'
+            WHEN u.population < 100000 THEN '05 - <100K'
+            ELSE '99 - NA'
+        END AS population_category_ordered
+        
     FROM {{ source('cityfinance_prod', 'ulbs') }} u
-    INNER JOIN states s ON u.state = s._id  -- This filters out ULBs from UTs
+    INNER JOIN states s ON u.state = s._id
     WHERE u."isActive" = 'true' 
       AND u."isPublish" = 'true'
 ),
@@ -134,6 +156,8 @@ ulb_year_matrix AS (
         u.code AS ulb_code,
         u.state AS state_id,
         u.population_category,
+        u.population_category_sort_order,
+        u.population_category_ordered,
         y._id AS year_id,
         y.year,
         d.doc_type
@@ -167,6 +191,8 @@ SELECT
         ELSE NULL 
     END AS digitization_pages,
     m.population_category,
+    m.population_category_sort_order,
+    m.population_category_ordered,
 
     to_char(now() AT TIME ZONE 'Asia/Kolkata',
                 'FMMonth DD YYYY "at" HH12:MI am') as "updated_at"
@@ -178,4 +204,4 @@ FROM
         AND m.doc_type = p.doc_type
     LEFT JOIN states s ON m.state_id = s._id
     LEFT JOIN iso_codes ic ON s.name = ic.state
-ORDER BY s.name, m.ulb_name, m.year, m.doc_type
+ORDER BY s.name, m.population_category_sort_order, m.ulb_name, m.year, m.doc_type

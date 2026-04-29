@@ -9,6 +9,8 @@ WITH base_data AS (
         financial_year,
         audit_type, 
         population_category, 
+        population_category_sort_order,
+        population_category_ordered,
         file_processed_on_detailed, 
         file_processed_on_month_year, 
         processed_time_ago,
@@ -27,6 +29,8 @@ ulb_year_summary AS (
         iso_code,
         financial_year,
         population_category,
+        population_category_sort_order,
+        population_category_ordered,
 
         -- Annual account status from afs_ocr_summary
         MAX(annual_account_status) AS annual_accounts_status,
@@ -42,7 +46,7 @@ ulb_year_summary AS (
         MAX(CASE WHEN doc_type = 'Income & Expenditure Schedules' THEN digitization_status END) as ie_status,
         MAX(CASE WHEN doc_type = 'Income & Expenditure Schedules' THEN audit_type END) as ie_audit
     FROM base_data
-    GROUP BY 1, 2, 3, 4, 5, 6
+    GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
 )
 
 -- 2. Apply the single-row logic and consistency check
@@ -53,6 +57,8 @@ SELECT
     iso_code,
     financial_year,
     population_category, 
+    population_category_sort_order,
+    population_category_ordered,
     annual_accounts_status,
     file_processed_on_detailed, 
     file_processed_on_month_year, 

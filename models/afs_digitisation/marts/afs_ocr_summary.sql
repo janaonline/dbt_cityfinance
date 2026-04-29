@@ -3,8 +3,8 @@
 WITH source_data AS (
     SELECT DISTINCT
         ulb_name, ulb_code, state_name, iso_code, financial_year, doc_type, audit_type, 
-        digitization_status, digitization_pages, population_category,
-        uploaded_by, file_processed_on_detailed, file_processed_on_month_year, processed_time_ago
+        digitization_status, digitization_pages, population_category, population_category_sort_order,
+        population_category_ordered, uploaded_by, file_processed_on_detailed, file_processed_on_month_year, processed_time_ago
     FROM {{ ref('afs_ocr_xl_files_dump') }}
     WHERE BTRIM(COALESCE(financial_year, '')) ~ '^[0-9]{4}-[0-9]{2}$'
       AND LEFT(BTRIM(financial_year), 4)::int >= 2019
@@ -86,6 +86,8 @@ SELECT
     d.digitization_status,
     d.digitization_pages,
     d.population_category,
+    d.population_category_sort_order,
+    d.population_category_ordered,
 
     aas.annual_account_status,
 
