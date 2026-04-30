@@ -11,7 +11,7 @@ WITH base_data AS (
         population_category_ordered,
         financial_year,
         is_schedules_digitized_consistent
-    FROM {{ ref('afs_schedules_consistency_check') }}
+    FROM {{ ref('afs_ocr_schedules_consistency_check') }}
 )
 
 SELECT
