@@ -74,7 +74,15 @@ models:
       marts:
         +schema: cf_requests             # All marts models go to this schema
         +tags: ['afs_digitisation']      # Add tags for selection
-        +materialized: table             # Materialize as tables by default    
+        +materialized: table             # Materialize as tables by default 
+
+    correlation_readiness: # to run the afs digitisation models : dbt run --select tag:correlation_readiness
+       marts:
+        +schema: cf_requests             # All marts models go to this schema
+        +tags: ['correlation_readiness']      # Add tags for selection
+        +materialized: table             # Materialize as tables by default      
+
+
 
   elementary:
     +schema: "elementary"                      # Elementary package models go to this schema

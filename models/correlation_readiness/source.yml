@@ -1,0 +1,7 @@
+version: 2
+sources:
+  - name: correlation_readiness
+    schema: cf_prod
+    tables: 
+      - name: ledgerlogs 
+        identifier: ledgerlogs
