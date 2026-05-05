@@ -106,7 +106,7 @@ standardization_logs AS (
         ) AS market_readiness_band,
 
       -- ADDED: Total Revenue from indicators JSON -> totRevenue     
-     MAX(
+    MAX(
             CASE
                 WHEN BTRIM(
                     NULLIF("indicators"::TEXT, '')::jsonb ->> 'totRevenue'
@@ -120,7 +120,7 @@ standardization_logs AS (
         ) AS total_revenue,
 
         -- ADDED: Revenue Expenditure from indicators JSON -> totRevenueExpenditure
-        MAX(
+    MAX(
             CASE
                 WHEN BTRIM(
                     NULLIF("indicators"::TEXT, '')::jsonb ->> 'totRevenueExpenditure'
@@ -135,7 +135,7 @@ standardization_logs AS (
 
         -- ADDED: CapEx from indicators JSON -> capex
         -- If capex is 'N/A', it will return NULL instead of causing a casting error
-        MAX(
+    MAX(
             CASE
                 WHEN BTRIM(
                     NULLIF("indicators"::TEXT, '')::jsonb ->> 'capex'
@@ -149,7 +149,7 @@ standardization_logs AS (
         ) AS capex,
 
         -- ADDED: line item 240 from lineItems JSON
-        MAX(
+    MAX(
             CASE
                 WHEN BTRIM(
                     NULLIF("lineItems"::TEXT, '')::jsonb ->> '240'
@@ -163,7 +163,7 @@ standardization_logs AS (
         ) AS  Interest_Finance_Charges,
 
         -- ADDED: line item 272 from lineItems JSON
-        MAX(
+    MAX(
             CASE
                 WHEN BTRIM(
                     NULLIF("lineItems"::TEXT, '')::jsonb ->> '272'
@@ -177,7 +177,7 @@ standardization_logs AS (
         ) AS Depreciation_on_Fixed_Assets,
 
          -- ADDED: line item 330 from lineItems JSON
-        MAX(
+    MAX(
             CASE
                 WHEN BTRIM(
                     NULLIF("lineItems"::TEXT, '')::jsonb ->> '330'
@@ -191,7 +191,7 @@ standardization_logs AS (
         ) AS secured_loans,
 
          -- ADDED: line item 331 from lineItems JSON
-        MAX(
+    MAX(
             CASE
                 WHEN BTRIM(
                     NULLIF("lineItems"::TEXT, '')::jsonb ->> '331'
@@ -242,13 +242,14 @@ SELECT
         ELSE 'Not Market-ready'
     END AS "market ready status",
 
-     l.total_revenue AS "Total Revenue",
+    l.total_revenue AS "Total Revenue",
     l.revenue_expenditure AS "Revenue Expenditure",
     l.capex AS "CapEx",
     l. Interest_Finance_Charges AS "Interest and Finance Charges",
-     l.Depreciation_on_Fixed_Assets AS "Depreciation on Fixed Assets",
-        l.secured_loans AS "Secured Loans",
-        l.unsecured_loans AS "Unsecured Loans",
+    l.Depreciation_on_Fixed_Assets AS "Depreciation on Fixed Assets",
+    l.secured_loans AS "Secured Loans",
+    l.unsecured_loans AS "Unsecured Loans",
+    l.market_readiness_band AS "Market Readiness Band",
 
      (
         COALESCE(l.secured_loans, 0)
