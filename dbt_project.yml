@@ -40,12 +40,19 @@ clean-targets:
 # Model configuration
 # -----------------------------------------------------------------------------
 models:
-  Janaagraha:  # Must match the `name:` field above
-    property_tax_poc:
-      +schema: property_tax_poc_prod           # All models in this folder go to this schema
-      #+tags: ['property_tax_poc']             # (Optional) Add tags for selection
-      +materialized: table                     # Materialize as tables by default
-    grants_condition:
+  Janaagraha:  # This section applies to all models in the Janaagraha project
+
+    property_tax_poc: # to run the property tax poc models : dbt run --select tag:property_tax_poc
+      marts:
+        +schema: property_tax_poc_prod           # All models in this folder go to this schema
+        #+tags: ['property_tax_poc']             # (Optional) Add tags for selection
+        +materialized: table                     # Materialize as tables by default
+      staging:
+        +schema: property_tax_poc_staging       # All staging models go to this schema
+        #+tags: ['property_tax_poc', 'staging'] # (Optional) Add tags for selection
+        +materialized: table                     # Materialize as tables by default  
+
+    grants_condition: # to run the grants condition models : dbt run --select tag:grants_condition
       #staging:
         #+schema: grants_condition_staging
         #+tags: ['grants_condition', 'staging']
@@ -54,15 +61,12 @@ models:
         +schema: grants_condition_prod         # All marts models go to this schema
         +tags: ['grants_condition', 'marts']   # Add tags for selection
         +materialized: table                   # Materialize as tables by default
-    grants_allocation:
-      #staging:
-        #+schema: grants_allocation_staging
-        #+tags: ['grants_allocation', 'staging']
-        #+materialized: table
+
+    grants_allocation: # to run the grants allocation models : dbt run --select tag:grants_allocation
       marts:
         +schema: grants_allocation_prod         # All marts models go to this schema
         +tags: ['grants_allocation', 'marts']   # Add tags for selection
-        +materialized: table                   # Materialize as tables by default
+        +materialized: table                    # Materialize as tables by default
     
     ap_api_poc: # to run the AP API POC models : dbt run --select tag:ap_api_poc
       marts:
@@ -76,12 +80,11 @@ models:
         +tags: ['afs_digitisation']      # Add tags for selection
         +materialized: table             # Materialize as tables by default 
 
-    correlation_readiness: # to run the afs digitisation models : dbt run --select tag:correlation_readiness
+    correlation_readiness: # to run the correlation readiness models : dbt run --select tag:correlation_readiness
        marts:
         +schema: cf_requests             # All marts models go to this schema
-        +tags: ['correlation_readiness']      # Add tags for selection
+        +tags: ['correlation_readiness'] # Add tags for selection
         +materialized: table             # Materialize as tables by default      
-
 
 
   elementary:
