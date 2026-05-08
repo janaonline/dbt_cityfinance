@@ -33,15 +33,13 @@ ulbs AS (
             ELSE 99
         END AS population_category_sort_order,
         CASE
-            WHEN u.population >= 4000000 THEN '01 - 4M+'
-            WHEN u.population >= 1000000 THEN '02 - 1M-4M'
-            WHEN u.population >= 500000 THEN '03 - 500K-1M'
-            WHEN u.population >= 100000 THEN '04 - 100K-500K'
-            WHEN u.population < 100000 THEN '05 - <100K'
+            WHEN u.population >= 1000000 THEN 'Metropolitan - 1M+'
+            WHEN u.population >= 100000 THEN 'Emerging 1L-10L'
+            WHEN u.population < 100000 THEN 'Small <100k'
             ELSE '99 - NA'
         END AS population_category_ordered
     FROM
-        { { source('cityfinance_prod', 'ulbs') } } u
+        {{ source('cityfinance_prod','ulbs') }} u
         INNER JOIN states s ON u.state = s._id
     WHERE
         u."isActive" = 'true'
@@ -179,7 +177,7 @@ standardization_logs AS (
             END
         ) AS unsecured_loans
     FROM
-        { { source('correlation_readiness', 'ledgerlogs') } }
+        {{ source('correlation_readiness', 'ledgerlogs') }}
     GROUP BY
         ulb_id :: TEXT,
         year :: TEXT
