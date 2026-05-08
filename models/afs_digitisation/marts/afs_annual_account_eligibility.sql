@@ -169,7 +169,7 @@ audited_records AS (
 
                     WHEN UPPER(aar.action_taken_by_role) = 'STATE'
                          AND UPPER(aar.is_draft) = 'TRUE'
-                        THEN 'eligible'
+                        THEN 'submitted'
 
                     WHEN UPPER(aar.action_taken_by_role) = 'STATE'
                          AND UPPER(aar.is_draft) = 'FALSE'
@@ -189,7 +189,10 @@ audited_records AS (
                  -- First gate: audited required PDFs only
                     WHEN COALESCE(aar.audited_has_required_pdf_urls, FALSE) = FALSE
                         THEN 'ineligible'
-                    WHEN aar.current_form_status IN (3, 4, 6)
+                    WHEN aar.current_form_status IN (3)
+                         AND UPPER(aar.audited_submit_annual_accounts) = 'TRUE'
+                        THEN 'submitted'    
+                    WHEN aar.current_form_status IN (4, 6)
                          AND UPPER(aar.audited_submit_annual_accounts) = 'TRUE'
                         THEN 'eligible'
                     ELSE 'ineligible'
@@ -241,7 +244,7 @@ unaudited_records AS (
 
                     WHEN UPPER(aar.action_taken_by_role) = 'STATE'
                          AND UPPER(aar.is_draft) = 'TRUE'
-                        THEN 'eligible'
+                        THEN 'submitted'
 
                     WHEN UPPER(aar.action_taken_by_role) = 'STATE'
                          AND UPPER(aar.is_draft) = 'FALSE'
@@ -261,7 +264,10 @@ unaudited_records AS (
                 -- First gate: unaudited required PDFs only
                     WHEN COALESCE(aar.unaudited_has_required_pdf_urls, FALSE) = FALSE
                         THEN 'ineligible'
-                    WHEN aar.current_form_status IN (3, 4, 6)
+                        WHEN aar.current_form_status IN (3)
+                         AND UPPER(aar.unaudited_submit_annual_accounts) = 'TRUE'
+                        THEN 'submitted'
+                    WHEN aar.current_form_status IN (4, 6)
                          AND UPPER(aar.unaudited_submit_annual_accounts) = 'TRUE'
                         THEN 'eligible'
                     ELSE 'ineligible'
