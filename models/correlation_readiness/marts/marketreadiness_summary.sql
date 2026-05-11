@@ -10,6 +10,14 @@ WITH states AS (
     WHERE "isUT" = 'false'
 ),
 
+ulbtypes AS (
+    SELECT
+        _id AS ulb_id,
+        name AS ulb_type
+    FROM {{ source('correlation_readiness', 'ulbtypes') }}
+    WHERE "isActive" = 'true'
+),
+
 ulbs AS (
     SELECT
         u._id AS ulb_id,
@@ -37,10 +45,12 @@ ulbs AS (
             WHEN u.population >= 100000 THEN 'Emerging 1L-10L'
             WHEN u.population < 100000 THEN 'Small <100k'
             ELSE '99 - NA'
-        END AS population_category_ordered
+        END AS population_category_ordered,
+        ut.ulb_type
     FROM
         {{ source('cityfinance_prod','ulbs') }} u
         INNER JOIN states s ON u.state = s._id
+        LEFT JOIN ulbtypes ut ON u._id = ut.ulb_id
     WHERE
         u."isActive" = 'true'
         AND u."isPublish" = 'true'
@@ -69,6 +79,7 @@ ulb_year_base AS (
         u.population_category,
         u.population_category_sort_order,
         u.population_category_ordered,
+        u.ulb_type,
         y.year_id,
         y.financial_year,
         y.financial_year_start
@@ -193,6 +204,7 @@ final_base AS (
         b.population_category,
         b.population_category_sort_order,
         b.population_category_ordered,
+        b.ulb_type,
         1 AS total_count,
         CASE
             WHEN COALESCE(l.has_standardized_value, FALSE) = TRUE THEN 'standardized'

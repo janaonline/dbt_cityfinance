@@ -5,3 +5,6 @@ sources:
     tables: 
       - name: ledgerlogs 
         identifier: ledgerlogs
+               
+      - name: ulbtypes
+        identifier: ulbtypes
