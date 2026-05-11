@@ -1,6 +1,6 @@
-{{ config(materialized = 'table', tags = ['correlation_readiness']) }}
+{{ config(materialized = 'table', tags = ['market_readiness']) }}
 
-{%- set columns = adapter.get_columns_in_relation(source('correlation_readiness', 'ledgerlogs')) -%}
+{%- set columns = adapter.get_columns_in_relation(source('market_readiness', 'ledgerlogs')) -%}
 {%- set column_names = columns | map(attribute='name') | list -%}
 
 
@@ -12,10 +12,18 @@ WITH states AS (
 
 ulbtypes AS (
     SELECT
-        _id AS ulb_id,
+        _id AS type_id,
         name AS ulb_type
-    FROM {{ source('correlation_readiness', 'ulbtypes') }}
+    FROM {{ source('market_readiness', 'ulbtypes') }}
     WHERE "isActive" = 'true'
+),
+
+state_regions AS (
+    SELECT
+        "States" AS state_name,
+        "Geographic_Region" AS geography_region,
+        "ASICS_Urbanization" AS asics_urbanization
+    FROM {{ source('market_readiness', 'market_readiness_state_region') }}
 ),
 
 ulbs AS (
@@ -50,7 +58,7 @@ ulbs AS (
     FROM
         {{ source('cityfinance_prod','ulbs') }} u
         INNER JOIN states s ON u.state = s._id
-        LEFT JOIN ulbtypes ut ON u._id = ut.ulb_id
+        LEFT JOIN ulbtypes ut ON u."ulbType" = ut.type_id
     WHERE
         u."isActive" = 'true'
         AND u."isPublish" = 'true'
@@ -80,6 +88,8 @@ ulb_year_base AS (
         u.population_category_sort_order,
         u.population_category_ordered,
         u.ulb_type,
+        sr.geography_region,
+        sr.asics_urbanization,
         y.year_id,
         y.financial_year,
         y.financial_year_start
@@ -87,6 +97,7 @@ ulb_year_base AS (
     CROSS JOIN years y
     LEFT JOIN states s ON u.state_id = s._id
     LEFT JOIN iso_codes i ON s.name = i.state
+    LEFT JOIN state_regions sr ON s.name = sr.state_name
 ),
 
 standardization_logs AS (
@@ -188,7 +199,7 @@ standardization_logs AS (
             END
         ) AS unsecured_loans
     FROM
-        {{ source('correlation_readiness', 'ledgerlogs') }}
+        {{ source('market_readiness', 'ledgerlogs') }}
     GROUP BY
         ulb_id :: TEXT,
         year :: TEXT
@@ -200,6 +211,8 @@ final_base AS (
         b.ulb_code,
         b.state_name,
         b.iso_code,
+        b.geography_region,
+        b.asics_urbanization,
         b.financial_year,
         b.population_category,
         b.population_category_sort_order,

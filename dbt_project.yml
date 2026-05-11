@@ -80,10 +80,10 @@ models:
         +tags: ['afs_digitisation']      # Add tags for selection
         +materialized: table             # Materialize as tables by default 
 
-    correlation_readiness: # to run the correlation readiness models : dbt run --select tag:correlation_readiness
+    market_readiness: # to run the market readiness models : dbt run --select tag:market_readiness
        marts:
         +schema: cf_requests             # All marts models go to this schema
-        +tags: ['correlation_readiness'] # Add tags for selection
+        +tags: ['market_readiness'] # Add tags for selection
         +materialized: table             # Materialize as tables by default      
 
 
