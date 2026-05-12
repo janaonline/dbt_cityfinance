@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: afs_analysis
+    schema: cf_prod
+    tables: 
+      - name: ledgerlogs 
+        identifier: ledgerlogs
+      - name: bondissueritems
+        identifier: bondissueritems  
+        
+
+                     

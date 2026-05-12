@@ -84,7 +84,13 @@ models:
        marts:
         +schema: cf_requests             # All marts models go to this schema
         +tags: ['market_readiness'] # Add tags for selection
-        +materialized: table             # Materialize as tables by default      
+        +materialized: table             # Materialize as tables by default  
+
+    afs_analysis: # to run the afs analysis models : dbt run --select tag:afs_analysis
+       marts:
+        +schema: cf_requests             # All marts models go to this schema
+        +tags: ['afs_analysis']          # Add tags for selection
+        +materialized: table             # Materialize as tables by default         
 
 
   elementary:
