@@ -1,6 +1,6 @@
-{{ config(materialized = 'table', tags = ['afs_digitisation']) }}
+{{ config(materialized = 'table', tags = ['afs_digitisation_tracker']) }}
 
-{%- set columns = adapter.get_columns_in_relation(source('afs_digitisation', 'afs_xl_files')) -%}
+{%- set columns = adapter.get_columns_in_relation(source('afs_digitisation_tracker', 'afs_xl_files')) -%}
 {%- set column_names = columns | map(attribute='name') | list -%}
 
 WITH raw_afs AS (
@@ -20,7 +20,7 @@ WITH raw_afs AS (
         {%- else -%}
         NULL::jsonb as ulb_json
         {%- endif %}
-    FROM {{ source('afs_digitisation', 'afs_xl_files') }}
+    FROM {{ source('afs_digitisation_tracker', 'afs_xl_files') }}
 ),
 
 processed_afs AS (

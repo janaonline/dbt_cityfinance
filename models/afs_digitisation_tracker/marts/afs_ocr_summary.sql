@@ -1,4 +1,4 @@
-{{ config(materialized = 'table', tags = ['afs_digitisation']) }}
+{{ config(materialized = 'table', tags = ['afs_digitisation_tracker']) }}
 
 WITH source_data AS (
     SELECT DISTINCT

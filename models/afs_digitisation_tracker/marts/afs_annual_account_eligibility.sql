@@ -1,4 +1,4 @@
-{{ config(materialized = 'table', tags = ['afs_digitisation']) }}
+{{ config(materialized = 'table', tags = ['afs_digitisation_tracker']) }}
 
 WITH states AS (
     SELECT _id, name 
@@ -346,7 +346,7 @@ standardization_logs AS (
             LOWER(BTRIM("isStandardizable"::TEXT)) = 'no'
         ) AS has_error_value
 
-    FROM {{ source('afs_digitisation', 'ledgerlogs') }}
+    FROM {{ source('afs_digitisation_tracker', 'ledgerlogs') }}
     GROUP BY ulb_id, year
 ),
 
