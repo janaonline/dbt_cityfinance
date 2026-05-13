@@ -6,8 +6,11 @@ sources:
     tables: 
       - name: ledgerlogs 
         identifier: ledgerlogs
+        
       - name: bondissueritems
         identifier: bondissueritems  
-        
+                 
+      - name: ulbtypes
+        identifier: ulbtypes
 
                      
