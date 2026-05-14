@@ -313,7 +313,10 @@ cagr_metrics AS (
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_own_source_revenue END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_own_source_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_own_source_revenue END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_own_source_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_own_source_revenue END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN total_own_source_revenue END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN total_own_source_revenue END), 0),
@@ -324,7 +327,10 @@ cagr_metrics AS (
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN revenue_grants END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN revenue_grants END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN revenue_grants END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN revenue_grants END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN revenue_grants END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN revenue_grants END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN revenue_grants END), 0),
@@ -335,7 +341,10 @@ cagr_metrics AS (
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN assigned_revenue END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN assigned_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN assigned_revenue END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN assigned_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN assigned_revenue END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN assigned_revenue END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN assigned_revenue END), 0),
@@ -346,7 +355,10 @@ cagr_metrics AS (
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN other_income END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN other_income END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN other_income END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN other_income END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN other_income END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN other_income END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN other_income END), 0),
@@ -357,7 +369,10 @@ cagr_metrics AS (
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_revenue END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_revenue END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_revenue END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN total_revenue END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN total_revenue END), 0),
@@ -368,7 +383,10 @@ cagr_metrics AS (
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue END), 0),
@@ -379,7 +397,10 @@ cagr_metrics AS (
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN non_tax_revenue END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN non_tax_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN non_tax_revenue END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN non_tax_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN non_tax_revenue END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN non_tax_revenue END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN non_tax_revenue END), 0),
@@ -390,7 +411,10 @@ cagr_metrics AS (
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN property_tax END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN property_tax END), 0),
@@ -400,41 +424,53 @@ cagr_metrics AS (
         END AS property_tax,
 
         CASE
-    WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END) > 0
-     AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END) > 0
-        THEN ROUND(((POWER(
-            MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END)
-            / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END), 0),
-            1.0 / 3
-        ) - 1) * 100)::NUMERIC, 2)
-    ELSE NULL
-END AS tax_revenue_as_pct_of_osr,
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END) >= 0
+                THEN ROUND(((POWER(
+                    MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END)
+                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END), 0),
+                    1.0 / 3
+                ) - 1) * 100)::NUMERIC, 2)
+            ELSE NULL
+        END AS tax_revenue_as_pct_of_osr,
 
-CASE
-    WHEN MAX(CASE WHEN financial_year = '2019-20' THEN non_tax_revenue_as_pct_of_osr END) > 0
-     AND MAX(CASE WHEN financial_year = '2022-23' THEN non_tax_revenue_as_pct_of_osr END) > 0
-        THEN ROUND(((POWER(
-            MAX(CASE WHEN financial_year = '2022-23' THEN non_tax_revenue_as_pct_of_osr END)
-            / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN non_tax_revenue_as_pct_of_osr END), 0),
-            1.0 / 3
-        ) - 1) * 100)::NUMERIC, 2)
-    ELSE NULL
-END AS non_tax_revenue_as_pct_of_osr,
+        CASE
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN non_tax_revenue_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN non_tax_revenue_as_pct_of_osr END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN non_tax_revenue_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN non_tax_revenue_as_pct_of_osr END) >= 0
+                THEN ROUND(((POWER(
+                    MAX(CASE WHEN financial_year = '2022-23' THEN non_tax_revenue_as_pct_of_osr END)
+                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN non_tax_revenue_as_pct_of_osr END), 0),
+                    1.0 / 3
+                ) - 1) * 100)::NUMERIC, 2)
+            ELSE NULL
+        END AS non_tax_revenue_as_pct_of_osr,
 
-CASE
-    WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END) > 0
-     AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END) > 0
-        THEN ROUND(((POWER(
-            MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END)
-            / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END), 0),
-            1.0 / 3
-        ) - 1) * 100)::NUMERIC, 2)
-    ELSE NULL
-END AS property_tax_as_pct_of_osr,
+        CASE
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END) >= 0
+                THEN ROUND(((POWER(
+                    MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END)
+                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END), 0),
+                    1.0 / 3
+                ) - 1) * 100)::NUMERIC, 2)
+            ELSE NULL
+        END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN secured_loans END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN secured_loans END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN secured_loans END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN secured_loans END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN secured_loans END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN secured_loans END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN secured_loans END), 0),
@@ -445,7 +481,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN unsecured_loans END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN unsecured_loans END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN unsecured_loans END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN unsecured_loans END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN unsecured_loans END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN unsecured_loans END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN unsecured_loans END), 0),
@@ -456,7 +495,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN establishment_expenditure END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN establishment_expenditure END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN establishment_expenditure END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN establishment_expenditure END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN establishment_expenditure END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN establishment_expenditure END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN establishment_expenditure END), 0),
@@ -467,7 +509,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN administrative_expenses END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN administrative_expenses END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN administrative_expenses END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN administrative_expenses END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN administrative_expenses END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN administrative_expenses END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN administrative_expenses END), 0),
@@ -478,7 +523,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN operation_and_maintenance END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN operation_and_maintenance END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN operation_and_maintenance END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN operation_and_maintenance END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN operation_and_maintenance END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN operation_and_maintenance END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN operation_and_maintenance END), 0),
@@ -489,7 +537,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN interest_and_finance_charges END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN interest_and_finance_charges END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN interest_and_finance_charges END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN interest_and_finance_charges END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN interest_and_finance_charges END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN interest_and_finance_charges END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN interest_and_finance_charges END), 0),
@@ -500,7 +551,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN programme_expenses END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN programme_expenses END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN programme_expenses END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN programme_expenses END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN programme_expenses END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN programme_expenses END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN programme_expenses END), 0),
@@ -511,7 +565,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN revenue_grants_contributions_and_subsidies END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN revenue_grants_contributions_and_subsidies END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN revenue_grants_contributions_and_subsidies END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN revenue_grants_contributions_and_subsidies END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN revenue_grants_contributions_and_subsidies END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN revenue_grants_contributions_and_subsidies END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN revenue_grants_contributions_and_subsidies END), 0),
@@ -522,7 +579,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN provisions_and_write_off END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN provisions_and_write_off END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN provisions_and_write_off END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN provisions_and_write_off END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN provisions_and_write_off END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN provisions_and_write_off END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN provisions_and_write_off END), 0),
@@ -533,7 +593,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN miscellaneous_expenses END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN miscellaneous_expenses END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN miscellaneous_expenses END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN miscellaneous_expenses END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN miscellaneous_expenses END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN miscellaneous_expenses END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN miscellaneous_expenses END), 0),
@@ -544,7 +607,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN depreciation END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN depreciation END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN depreciation END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN depreciation END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN depreciation END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN depreciation END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN depreciation END), 0),
@@ -555,7 +621,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN prior_period_items END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN prior_period_items END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN prior_period_items END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN prior_period_items END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN prior_period_items END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN prior_period_items END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN prior_period_items END), 0),
@@ -566,7 +635,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN transfer_to_reserve_funds END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN transfer_to_reserve_funds END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN transfer_to_reserve_funds END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN transfer_to_reserve_funds END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN transfer_to_reserve_funds END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN transfer_to_reserve_funds END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN transfer_to_reserve_funds END), 0),
@@ -577,7 +649,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN other END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN other END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN other END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN other END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN other END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN other END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN other END), 0),
@@ -588,7 +663,10 @@ END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_expenditure END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_expenditure END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_expenditure END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_expenditure END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_expenditure END) >= 0
                 THEN ROUND(((POWER(
                     MAX(CASE WHEN financial_year = '2022-23' THEN total_expenditure END)
                     / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN total_expenditure END), 0),
