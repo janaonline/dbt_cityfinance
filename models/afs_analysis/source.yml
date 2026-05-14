@@ -12,5 +12,10 @@ sources:
                  
       - name: ulbtypes
         identifier: ulbtypes
+      
+      - name: bonds_afs_finance_analysis
+        identifier: Bonds_afs_finance_analysis
+        quoting:
+          identifier: true
 
                      

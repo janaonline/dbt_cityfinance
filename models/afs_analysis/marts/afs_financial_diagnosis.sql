@@ -687,6 +687,19 @@ financials_all AS (
     SELECT * FROM cagr_metrics
 ),
 
+bonds AS (
+    SELECT
+        UPPER(BTRIM("ULB_Code"::TEXT)) AS ulb_code,
+
+        MAX("No__of_Bonds_Raised"::NUMERIC) AS no_of_bonds_raised,
+
+        MAX("Amount_Raised__In_Cr__"::NUMERIC) AS amount_raised_in_cr
+
+    FROM {{ source('afs_analysis', 'bonds_afs_finance_analysis') }}
+    GROUP BY
+        UPPER(BTRIM("ULB_Code"::TEXT))
+),
+
 final_base AS (
     SELECT
         u.ulb_code,
@@ -714,7 +727,8 @@ SELECT
     fb.ulb_type,
     fb.population,
     fb.area,
-
+    b.no_of_bonds_raised AS "No Of Bonds Raised",
+    b.amount_raised_in_cr AS "Amount Raised in Cr",
     fa.total_own_source_revenue AS "Total Own Source Revenue",
     fa.revenue_grants AS "Revenue Grants",
     fa.assigned_revenue AS "Assigned Revenue",
@@ -749,6 +763,9 @@ FROM final_base fb
 LEFT JOIN financials_all fa
     ON LOWER(BTRIM(fb.ulb_name)) = LOWER(BTRIM(fa.ulb_name))
     AND fb.financial_year = fa.financial_year
+
+LEFT JOIN bonds b
+    ON UPPER(BTRIM(fb.ulb_code::TEXT)) = b.ulb_code
 
 ORDER BY
     fb.state_name,
