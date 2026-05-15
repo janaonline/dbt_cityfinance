@@ -75,12 +75,61 @@ financial_values AS (
         financial_year,
 
         MAX(
-            CASE
-                WHEN indicators_json ->> 'totOwnRevenue' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                    THEN (indicators_json ->> 'totOwnRevenue')::NUMERIC
-                ELSE NULL
-            END
-        ) AS total_own_source_revenue,
+    CASE
+        WHEN
+            (lineitems_json ->> '110') ~ '^-?[0-9]+(\.[0-9]+)?$'
+            OR (lineitems_json ->> '130') ~ '^-?[0-9]+(\.[0-9]+)?$'
+            OR (lineitems_json ->> '140') ~ '^-?[0-9]+(\.[0-9]+)?$'
+            OR (lineitems_json ->> '150') ~ '^-?[0-9]+(\.[0-9]+)?$'
+            OR (lineitems_json ->> '180') ~ '^-?[0-9]+(\.[0-9]+)?$'
+        THEN
+            COALESCE(
+                CASE
+                    WHEN (lineitems_json ->> '110') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                        THEN (lineitems_json ->> '110')::NUMERIC
+                    ELSE NULL
+                END,
+                0
+            )
+            +
+            COALESCE(
+                CASE
+                    WHEN (lineitems_json ->> '130') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                        THEN (lineitems_json ->> '130')::NUMERIC
+                    ELSE NULL
+                END,
+                0
+            )
+            +
+            COALESCE(
+                CASE
+                    WHEN (lineitems_json ->> '140') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                        THEN (lineitems_json ->> '140')::NUMERIC
+                    ELSE NULL
+                END,
+                0
+            )
+            +
+            COALESCE(
+                CASE
+                    WHEN (lineitems_json ->> '150') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                        THEN (lineitems_json ->> '150')::NUMERIC
+                    ELSE NULL
+                END,
+                0
+            )
+            +
+            COALESCE(
+                CASE
+                    WHEN (lineitems_json ->> '180') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                        THEN (lineitems_json ->> '180')::NUMERIC
+                    ELSE NULL
+                END,
+                0
+            )
+        ELSE NULL
+    END
+) AS total_own_source_revenue,
 
         MAX(
             CASE
@@ -98,14 +147,31 @@ financial_values AS (
             END
         ) AS assigned_revenue,
 
-        MAX(
-            CASE
-                WHEN lineitems_json ->> '180' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                    THEN (lineitems_json ->> '180')::NUMERIC
-                ELSE NULL
-            END
-        ) AS other_income,
-
+      MAX(
+        CASE
+            WHEN (lineitems_json ->> '170') ~ '^-?[0-9]+(\.[0-9]+)?$'
+            OR (lineitems_json ->> '171') ~ '^-?[0-9]+(\.[0-9]+)?$'
+            THEN
+                COALESCE(
+                    CASE
+                        WHEN (lineitems_json ->> '170') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                        THEN (lineitems_json ->> '170')::NUMERIC
+                        ELSE 0
+                    END,
+                    0
+                )
+                +
+                COALESCE(
+                    CASE
+                            WHEN (lineitems_json ->> '171') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                            THEN (lineitems_json ->> '171')::NUMERIC
+                            ELSE 0
+                        END,
+                        0
+                 )
+            ELSE NULL
+        END
+    ) AS other_income,
         MAX(
             CASE
                 WHEN indicators_json ->> 'totRevenue' ~ '^-?[0-9]+(\.[0-9]+)?$'
