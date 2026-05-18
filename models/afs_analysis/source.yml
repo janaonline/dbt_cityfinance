@@ -18,4 +18,7 @@ sources:
         quoting:
           identifier: true
 
-                     
+      - name: propertytaxopmappers
+        identifier: propertytaxopmappers
+      - name: propertytaxops
+        identifier: propertytaxops               

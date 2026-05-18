@@ -17,10 +17,13 @@ ulbtypes AS (
 ),
 
 iso_codes AS (
-    SELECT
+    SELECT DISTINCT ON (state)
         state,
         iso_code
     FROM {{ source('cityfinance_prod', 'iso_codes') }}
+    ORDER BY
+        state,
+        iso_code
 ),
 
 ulbs AS (
@@ -42,10 +45,11 @@ ulbs AS (
         AND u."isPublish" = 'true'
 ),
 
-ulb_master AS (
-    SELECT DISTINCT
+ulb_master_raw AS (
+    SELECT
         u.ulb_code,
         u.ulb_name,
+        LOWER(BTRIM(u.ulb_name)) AS ulb_name_key,
         s.name AS state_name,
         i.iso_code,
         u.ulb_type,
@@ -58,8 +62,27 @@ ulb_master AS (
         ON s.name = i.state
 ),
 
+-- Ensures only one master row per ULB code.
+ulb_master AS (
+    SELECT DISTINCT ON (ulb_code)
+        ulb_code,
+        ulb_name,
+        ulb_name_key,
+        state_name,
+        iso_code,
+        ulb_type,
+        population,
+        area
+    FROM ulb_master_raw
+    ORDER BY
+        ulb_code,
+        state_name,
+        ulb_name
+),
+
 financial_raw AS (
     SELECT
+        LOWER(BTRIM(l.ulb::TEXT)) AS ulb_name_key,
         BTRIM(l.ulb::TEXT) AS ulb_name,
         BTRIM(l.year::TEXT) AS financial_year,
         COALESCE(NULLIF(l."lineItems"::TEXT, ''), '{}')::JSONB AS lineitems_json
@@ -69,153 +92,109 @@ financial_raw AS (
         AND CAST(SPLIT_PART(BTRIM(l.year::TEXT), '-', 1) AS INTEGER) BETWEEN 2019 AND 2022
 ),
 
-tax_line_item_flags AS (
-    SELECT
-        ulb_name,
-        financial_year,
-        lineitems_json,
+line_item_master AS (
+    SELECT *
+    FROM (
+        VALUES
+            -- Tax Revenue
+            ('11001', 1, 'tax', 'Property Tax'),
+            ('11002', 2, 'tax', 'Water Supply and Drainage Tax'),
+            ('11003', 3, 'tax', 'Sewerage Tax'),
+            ('11004', 4, 'tax', 'Conservancy Tax'),
+            ('11005', 5, 'tax', 'Lighting Tax'),
+            ('11006', 6, 'tax', 'Education Tax'),
+            ('11007', 7, 'tax', 'Vehicle Tax'),
+            ('11008', 8, 'tax', 'Tax on Animals'),
+            ('11009', 9, 'tax', 'Electricity Tax'),
+            ('11010', 10, 'tax', 'Professional Tax'),
+            ('11011', 11, 'tax', 'Entertainment Tax'),
+            ('11012', 12, 'tax', 'Advertisement Tax'),
+            ('11013', 13, 'tax', 'Pilgrimage Tax'),
+            ('11014', 14, 'tax', 'Octroi & Toll'),
+            ('11015', 15, 'tax', 'Cess'),
+            ('11016', 16, 'tax', 'Tax on Carts'),
+            ('11017', 17, 'tax', 'Tax Remission & Refund'),
+            ('11018', 18, 'tax', 'Others'),
 
-        CASE
-            WHEN
-                lineitems_json ->> '11001' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11002' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11003' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11004' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11005' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11006' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11007' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11008' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11009' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11010' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11011' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11012' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11013' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11014' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11015' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11016' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11017' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '11018' ~ '^-?[0-9]+(\.[0-9]+)?$'
-            THEN 1
-            ELSE 0
-        END AS has_any_tax_line_item_data,
+            -- Assigned Revenue
+            ('120', 101, 'assigned_revenue', 'Tax and Duties collected by others'),
 
-        CASE
-            WHEN lineitems_json ->> '120' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                THEN 1
-            ELSE 0
-        END AS has_assigned_revenue_data,
+            -- Non-Tax Revenue
+            ('130', 201, 'non_tax_revenue', 'Rental Income from Municipal Properties'),
+            ('140', 202, 'non_tax_revenue', 'Fee & User Charges'),
+            ('150', 203, 'non_tax_revenue', 'Sale & Hire charges'),
+            ('180', 204, 'non_tax_revenue', 'Other Non-Tax Revenue (Insurance Claim Recovery, Miscellaneous)'),
 
-        CASE
-            WHEN
-                lineitems_json ->> '170' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                OR lineitems_json ->> '171' ~ '^-?[0-9]+(\.[0-9]+)?$'
-            THEN 1
-            ELSE 0
-        END AS has_other_income_data
-
-    FROM financial_raw
+            -- Other Income
+            ('170', 301, 'other_income', 'Income from Investment'),
+            ('171', 302, 'other_income', 'Interest earned')
+    ) AS m(line_item_code, sort_order, category, label)
 ),
 
-tax_line_items AS (
+-- One row per ULB-year-line-item hit.
+line_item_hits AS (
     SELECT
-        ulb_name,
+        fr.ulb_name_key,
+        fr.financial_year,
+        m.category,
+        m.line_item_code,
+        m.sort_order,
+        m.label
+    FROM financial_raw fr
+    INNER JOIN line_item_master m
+        ON fr.lineitems_json ->> m.line_item_code ~ '^-?[0-9]+(\.[0-9]+)?$'
+),
 
-        NULLIF(
-            CONCAT_WS(
-                ', ',
+-- Deduplicates the same line item across years.
+deduped_line_item_hits AS (
+    SELECT
+        ulb_name_key,
+        category,
+        line_item_code,
+        MIN(sort_order) AS sort_order,
+        MAX(label) AS label
+    FROM line_item_hits
+    GROUP BY
+        ulb_name_key,
+        category,
+        line_item_code
+),
 
-                MAX(CASE WHEN lineitems_json ->> '11001' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11001 - Property Tax' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11002' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11002 - Water Supply and Drainage Tax' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11003' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11003 - Sewerage Tax' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11004' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11004 - Conservancy Tax' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11005' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11005 - Lighting Tax' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11006' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11006 - Education Tax' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11007' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11007 - Vehicle Tax' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11008' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11008 - Tax on Animals' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11009' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11009 - Electricity Tax' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11010' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11010 - Professional Tax' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11011' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11011 - Entertainment Tax' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11012' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11012 - Advertisement Tax' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11013' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11013 - Pilgrimage Tax' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11014' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11014 - Octroi & Toll' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11015' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11015 - Cess' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11016' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11016 - Tax on Carts' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11017' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11017 - Tax Remission & Refund' ELSE NULL END),
-                MAX(CASE WHEN lineitems_json ->> '11018' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN '11018 - Others' ELSE NULL END)
-            ),
-            ''
-        ) AS tax_line_items_with_data,
+-- Compiles all years into one row per ULB.
+compiled_line_items AS (
+    SELECT
+        ulb_name_key,
 
-        NULLIF(
-            MAX(
-                CASE
-                    WHEN lineitems_json ->> '120' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                        THEN 'Tax and Duties collected by others'
-                    ELSE NULL
-                END
-            ),
-            ''
-        ) AS assigned_revenue_with_data,
+        STRING_AGG(label, ', ' ORDER BY sort_order)
+            FILTER (WHERE category = 'tax') AS tax_line_items_with_data,
 
-        NULLIF(
-            CONCAT_WS(
-                ', ',
+        STRING_AGG(label, ', ' ORDER BY sort_order)
+            FILTER (WHERE category = 'assigned_revenue') AS assigned_revenue_with_data,
 
-                MAX(
-                    CASE
-                        WHEN lineitems_json ->> '170' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                            THEN '170 - Income from Investment'
-                        ELSE NULL
-                    END
-                ),
+        STRING_AGG(label, ', ' ORDER BY sort_order)
+            FILTER (WHERE category = 'other_income') AS other_income_with_data,
 
-                MAX(
-                    CASE
-                        WHEN lineitems_json ->> '171' ~ '^-?[0-9]+(\.[0-9]+)?$'
-                            THEN '171 - Interest earned'
-                        ELSE NULL
-                    END
-                )
-            ),
-            ''
-        ) AS other_income_with_data,
+        STRING_AGG(label, ', ' ORDER BY sort_order)
+            FILTER (WHERE category = 'non_tax_revenue') AS non_tax_revenue_with_data,
 
-        (
-            MAX(CASE WHEN lineitems_json ->> '11001' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11002' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11003' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11004' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11005' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11006' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11007' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11008' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11009' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11010' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11011' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11012' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11013' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11014' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11015' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11016' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11017' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END) +
-            MAX(CASE WHEN lineitems_json ->> '11018' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN 1 ELSE 0 END)
-        ) AS no_of_tax_line_items_with_data,
+        COUNT(*)
+            FILTER (WHERE category = 'tax') AS no_of_tax_line_items_with_data
 
+    FROM deduped_line_item_hits
+    GROUP BY
+        ulb_name_key
+),
+
+compiled_years AS (
+    SELECT
+        ulb_name_key,
         STRING_AGG(
             DISTINCT financial_year,
             ', ' ORDER BY financial_year
-        ) FILTER (
-            WHERE
-                has_any_tax_line_item_data = 1
-                OR has_assigned_revenue_data = 1
-                OR has_other_income_data = 1
-        ) AS years_with_data,
-
-        '2019-20, 2020-21, 2021-22, 2022-23' AS years_checked
-
-    FROM tax_line_item_flags
+        ) AS years_with_data
+    FROM line_item_hits
     GROUP BY
-        ulb_name
+        ulb_name_key
 ),
 
 final AS (
@@ -228,20 +207,19 @@ final AS (
         um.population,
         um.area,
 
-        tli.tax_line_items_with_data,
-        tli.assigned_revenue_with_data AS "Assigned Revenue",
-        tli.other_income_with_data AS "Other Income",
-        tli.no_of_tax_line_items_with_data,
-        tli.years_with_data,
-        tli.years_checked
+        cli.tax_line_items_with_data AS "Tax Revenue",
+        cli.assigned_revenue_with_data AS "Assigned Revenue",
+        cli.other_income_with_data AS "Other Income",
+        cli.non_tax_revenue_with_data AS "Non-Tax Revenue",
+        cli.no_of_tax_line_items_with_data,
+        cy.years_with_data,
+        '2019-20, 2020-21, 2021-22, 2022-23' AS years_checked
 
     FROM ulb_master um
-    INNER JOIN tax_line_items tli
-        ON LOWER(BTRIM(um.ulb_name)) = LOWER(BTRIM(tli.ulb_name))
-    WHERE
-        tli.no_of_tax_line_items_with_data > 0
-        OR tli.assigned_revenue_with_data IS NOT NULL
-        OR tli.other_income_with_data IS NOT NULL
+    LEFT JOIN compiled_line_items cli
+        ON um.ulb_name_key = cli.ulb_name_key
+    LEFT JOIN compiled_years cy
+        ON um.ulb_name_key = cy.ulb_name_key
 )
 
 SELECT *

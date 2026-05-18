@@ -43,18 +43,88 @@ iso_codes AS (
     FROM {{ source('cityfinance_prod', 'iso_codes') }}
 ),
 
-years AS (
+years_base AS (
     SELECT
+        _id AS year_id,
         year AS financial_year,
         CAST(SPLIT_PART(year, '-', 1) AS INTEGER) AS financial_year_start
     FROM {{ source('cityfinance_prod', 'years') }}
-    WHERE CAST(SPLIT_PART(year, '-', 1) AS INTEGER) BETWEEN 2019 AND 2022
+    WHERE year ~ '^\d{4}-\d{2}$'
+      AND CAST(SPLIT_PART(year, '-', 1) AS INTEGER) BETWEEN 2019 AND 2022
+),
+
+years AS (
+    SELECT
+        year_id,
+        financial_year,
+        financial_year_start
+    FROM years_base
 
     UNION ALL
 
     SELECT
+        NULL AS year_id,
         'CAGR' AS financial_year,
         9999 AS financial_year_start
+),
+
+/* NEW: Property tax collection from propertytaxopmappers
+   displayPriority 1.17 = Total Collection
+*/
+total_property_tax_collection AS (
+    SELECT
+        BTRIM(ptm.ulb::TEXT) AS ulb_id,
+        yb.financial_year,
+        yb.year_id,
+        yb.financial_year_start,
+        {{ safe_numeric('ptm.value') }} AS value
+    FROM {{ source('cityfinance_prod', 'propertytaxopmappers') }} ptm
+    LEFT JOIN years_base yb
+        ON BTRIM(ptm.year::TEXT) = BTRIM(yb.year_id::TEXT)
+    WHERE ptm."displayPriority" = '1.17'
+      AND yb.financial_year ~ '^\d{4}-\d{2}$'
+),
+
+property_tax_collection_base AS (
+    SELECT
+        ulb_id,
+        financial_year,
+        MAX(value) AS total_property_tax_collection
+    FROM total_property_tax_collection
+    GROUP BY
+        ulb_id,
+        financial_year
+),
+
+property_tax_collection_cagr AS (
+    SELECT
+        ulb_id,
+        'CAGR' AS financial_year,
+
+        CASE
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_property_tax_collection END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_property_tax_collection END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_property_tax_collection END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_property_tax_collection END) >= 0
+                THEN ROUND(((POWER(
+                    MAX(CASE WHEN financial_year = '2022-23' THEN total_property_tax_collection END)
+                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN total_property_tax_collection END), 0),
+                    1.0 / 3
+                ) - 1) * 100)::NUMERIC, 2)
+            ELSE NULL
+        END AS total_property_tax_collection
+
+    FROM property_tax_collection_base
+    GROUP BY ulb_id
+),
+
+property_tax_collection_all AS (
+    SELECT * FROM property_tax_collection_base
+
+    UNION ALL
+
+    SELECT * FROM property_tax_collection_cagr
 ),
 
 financial_raw AS (
@@ -75,61 +145,61 @@ financial_values AS (
         financial_year,
 
         MAX(
-    CASE
-        WHEN
-            (lineitems_json ->> '110') ~ '^-?[0-9]+(\.[0-9]+)?$'
-            OR (lineitems_json ->> '130') ~ '^-?[0-9]+(\.[0-9]+)?$'
-            OR (lineitems_json ->> '140') ~ '^-?[0-9]+(\.[0-9]+)?$'
-            OR (lineitems_json ->> '150') ~ '^-?[0-9]+(\.[0-9]+)?$'
-            OR (lineitems_json ->> '180') ~ '^-?[0-9]+(\.[0-9]+)?$'
-        THEN
-            COALESCE(
-                CASE
-                    WHEN (lineitems_json ->> '110') ~ '^-?[0-9]+(\.[0-9]+)?$'
-                        THEN (lineitems_json ->> '110')::NUMERIC
-                    ELSE NULL
-                END,
-                0
-            )
-            +
-            COALESCE(
-                CASE
-                    WHEN (lineitems_json ->> '130') ~ '^-?[0-9]+(\.[0-9]+)?$'
-                        THEN (lineitems_json ->> '130')::NUMERIC
-                    ELSE NULL
-                END,
-                0
-            )
-            +
-            COALESCE(
-                CASE
-                    WHEN (lineitems_json ->> '140') ~ '^-?[0-9]+(\.[0-9]+)?$'
-                        THEN (lineitems_json ->> '140')::NUMERIC
-                    ELSE NULL
-                END,
-                0
-            )
-            +
-            COALESCE(
-                CASE
-                    WHEN (lineitems_json ->> '150') ~ '^-?[0-9]+(\.[0-9]+)?$'
-                        THEN (lineitems_json ->> '150')::NUMERIC
-                    ELSE NULL
-                END,
-                0
-            )
-            +
-            COALESCE(
-                CASE
-                    WHEN (lineitems_json ->> '180') ~ '^-?[0-9]+(\.[0-9]+)?$'
-                        THEN (lineitems_json ->> '180')::NUMERIC
-                    ELSE NULL
-                END,
-                0
-            )
-        ELSE NULL
-    END
-) AS total_own_source_revenue,
+            CASE
+                WHEN
+                    (lineitems_json ->> '110') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                    OR (lineitems_json ->> '130') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                    OR (lineitems_json ->> '140') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                    OR (lineitems_json ->> '150') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                    OR (lineitems_json ->> '180') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                THEN
+                    COALESCE(
+                        CASE
+                            WHEN (lineitems_json ->> '110') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                                THEN (lineitems_json ->> '110')::NUMERIC
+                            ELSE NULL
+                        END,
+                        0
+                    )
+                    +
+                    COALESCE(
+                        CASE
+                            WHEN (lineitems_json ->> '130') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                                THEN (lineitems_json ->> '130')::NUMERIC
+                            ELSE NULL
+                        END,
+                        0
+                    )
+                    +
+                    COALESCE(
+                        CASE
+                            WHEN (lineitems_json ->> '140') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                                THEN (lineitems_json ->> '140')::NUMERIC
+                            ELSE NULL
+                        END,
+                        0
+                    )
+                    +
+                    COALESCE(
+                        CASE
+                            WHEN (lineitems_json ->> '150') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                                THEN (lineitems_json ->> '150')::NUMERIC
+                            ELSE NULL
+                        END,
+                        0
+                    )
+                    +
+                    COALESCE(
+                        CASE
+                            WHEN (lineitems_json ->> '180') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                                THEN (lineitems_json ->> '180')::NUMERIC
+                            ELSE NULL
+                        END,
+                        0
+                    )
+                ELSE NULL
+            END
+        ) AS total_own_source_revenue,
 
         MAX(
             CASE
@@ -147,31 +217,32 @@ financial_values AS (
             END
         ) AS assigned_revenue,
 
-      MAX(
-        CASE
-            WHEN (lineitems_json ->> '170') ~ '^-?[0-9]+(\.[0-9]+)?$'
-            OR (lineitems_json ->> '171') ~ '^-?[0-9]+(\.[0-9]+)?$'
-            THEN
-                COALESCE(
-                    CASE
-                        WHEN (lineitems_json ->> '170') ~ '^-?[0-9]+(\.[0-9]+)?$'
-                        THEN (lineitems_json ->> '170')::NUMERIC
-                        ELSE 0
-                    END,
-                    0
-                )
-                +
-                COALESCE(
-                    CASE
-                            WHEN (lineitems_json ->> '171') ~ '^-?[0-9]+(\.[0-9]+)?$'
-                            THEN (lineitems_json ->> '171')::NUMERIC
+        MAX(
+            CASE
+                WHEN (lineitems_json ->> '170') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                  OR (lineitems_json ->> '171') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                THEN
+                    COALESCE(
+                        CASE
+                            WHEN (lineitems_json ->> '170') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                                THEN (lineitems_json ->> '170')::NUMERIC
                             ELSE 0
                         END,
                         0
-                 )
-            ELSE NULL
-        END
-    ) AS other_income,
+                    )
+                    +
+                    COALESCE(
+                        CASE
+                            WHEN (lineitems_json ->> '171') ~ '^-?[0-9]+(\.[0-9]+)?$'
+                                THEN (lineitems_json ->> '171')::NUMERIC
+                            ELSE 0
+                        END,
+                        0
+                    )
+                ELSE NULL
+            END
+        ) AS other_income,
+
         MAX(
             CASE
                 WHEN indicators_json ->> 'totRevenue' ~ '^-?[0-9]+(\.[0-9]+)?$'
@@ -768,10 +839,12 @@ bonds AS (
 
 final_base AS (
     SELECT
+        u.ulb_id,
         u.ulb_code,
         u.ulb_name,
         s.name AS state_name,
         i.iso_code,
+        y.year_id,
         y.financial_year,
         u.ulb_type,
         u.population,
@@ -804,6 +877,9 @@ SELECT
     fa.non_tax_revenue AS "Non-Tax Revenue",
     fa.property_tax AS "Property Tax",
 
+    -- NEW: Property tax collection from propertytaxopmappers displayPriority 1.17
+    ptc.total_property_tax_collection AS "Total Property Tax Collection",
+
     fa.tax_revenue_as_pct_of_osr AS "Tax Revenue as % of OSR",
     fa.non_tax_revenue_as_pct_of_osr AS "Non-Tax Revenue as % of OSR",
     fa.property_tax_as_pct_of_osr AS "Property Tax as % of OSR",
@@ -829,6 +905,10 @@ FROM final_base fb
 LEFT JOIN financials_all fa
     ON LOWER(BTRIM(fb.ulb_name)) = LOWER(BTRIM(fa.ulb_name))
     AND fb.financial_year = fa.financial_year
+
+LEFT JOIN property_tax_collection_all ptc
+    ON BTRIM(fb.ulb_id::TEXT) = BTRIM(ptc.ulb_id::TEXT)
+    AND fb.financial_year = ptc.financial_year
 
 LEFT JOIN bonds b
     ON UPPER(BTRIM(fb.ulb_code::TEXT)) = b.ulb_code
