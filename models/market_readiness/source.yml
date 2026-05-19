@@ -1,0 +1,12 @@
+version: 2
+sources:
+  - name: market_readiness
+    schema: cf_prod
+    tables: 
+      - name: ledgerlogs 
+        identifier: ledgerlogs
+               
+      - name: ulbtypes
+        identifier: ulbtypes
+      - name: market_readiness_state_region
+        identifier: market_readiness_state_region  

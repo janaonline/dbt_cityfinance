@@ -1,7 +1,7 @@
 version: 2
 
 sources:
-  - name: afs_digitisation
+  - name: afs_digitisation_tracker
     schema: cf_prod
     tables: 
       - name: afs_xl_files 
