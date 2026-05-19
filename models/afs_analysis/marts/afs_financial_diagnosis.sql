@@ -50,7 +50,7 @@ years_base AS (
         CAST(SPLIT_PART(year, '-', 1) AS INTEGER) AS financial_year_start
     FROM {{ source('cityfinance_prod', 'years') }}
     WHERE year ~ '^\d{4}-\d{2}$'
-      AND CAST(SPLIT_PART(year, '-', 1) AS INTEGER) BETWEEN 2019 AND 2022
+      AND CAST(SPLIT_PART(year, '-', 1) AS INTEGER) BETWEEN 2018 AND 2022
 ),
 
 years AS (
