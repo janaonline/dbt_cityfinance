@@ -181,11 +181,11 @@ SELECT
     ulb,
     state,
     year,
-    updated_at,
     CASE 
         WHEN validation_failures = 0 THEN 'All validations passed - Data is complete and accurate'
         ELSE validation_errors_list
     END AS validation_errors,
-    validation_failures::text || '/' || total_validations::text AS validation_status
+    validation_failures::text || '/' || total_validations::text AS validation_status,
+    updated_at
 FROM final_validations
 ORDER BY validation_failures DESC, ulb, year
