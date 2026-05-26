@@ -40,22 +40,22 @@ WITH classified_data AS (
         CASE
             -- Own Source Revenue: majorcode 110,130,140,150,180 at main level (subcode=0)
             WHEN majorcode IN (110, 130, 140, 150, 180) AND subcode = 0 
-                THEN 'own source revenue'
+                THEN 'Own Source Revenue'
             
             -- Assigned Revenue: majorcode 120 at main level (subcode=0)
             -- Represents revenue assigned/shared from state to ULB
             WHEN majorcode = 120 AND subcode = 0 
-                THEN 'Assigned revenue'
+                THEN 'Assigned Revenue'
             
             -- Revenue Grants: majorcode 160 at main level (subcode=0)
             -- Government grants provided for specific purposes
             WHEN majorcode = 160 AND subcode = 0 
-                THEN 'revenue grants'
+                THEN 'Revenue Grants'
             
             -- Other Revenue: majorcode 170,171 at main level (subcode=0)
             -- Miscellaneous revenue sources not in above categories
             WHEN majorcode IN (170, 171) AND subcode = 0 
-                THEN 'others'
+                THEN 'Other Income'
             
             -- No classification if row doesn't match above patterns
             ELSE NULL
@@ -69,23 +69,23 @@ WITH classified_data AS (
         CASE
             -- Tax Revenue: Property tax, business tax, etc.
             WHEN majorcode = 110 AND subcode = 0 
-                THEN 'tax revenue'
+                THEN 'Tax Revenue'
             
             -- Fees and User Charges: License fees, registration, service charges
             WHEN majorcode = 130 AND subcode = 0 
-                THEN 'fees and user charges'
+                THEN 'Fees and User Charges'
             
             -- Sales and Hire Charges: Revenue from selling municipal assets/services
             WHEN majorcode = 140 AND subcode = 0 
-                THEN 'sales and hire charges'
+                THEN 'Sales and Hire Charges'
             
             -- Rental Income: Lease/rent from municipal properties
             WHEN majorcode = 150 AND subcode = 0 
-                THEN 'rental income'
+                THEN 'Rental Income'
             
             -- Other OSR: Miscellaneous own source revenue not in above categories
             WHEN majorcode = 180 AND subcode = 0 
-                THEN 'others'
+                THEN 'Other Income'
             
             -- No classification if outside OSR majorcode range
             ELSE NULL
@@ -100,7 +100,7 @@ WITH classified_data AS (
             -- Property tax detailed breakdown: subcodes 1100101-1100104
             -- These represent individual property tax components/slabs
             WHEN subcode IN (1100101, 1100102, 1100103, 1100104) 
-                THEN 'tax revenue'
+                THEN 'Tax Revenue'
             
             -- No classification if subcode not in property tax range
             ELSE NULL
