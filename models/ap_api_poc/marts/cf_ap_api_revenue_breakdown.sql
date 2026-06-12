@@ -56,6 +56,7 @@ WITH classified_data AS (
             -- Miscellaneous revenue sources not in above categories
             WHEN majorcode IN (170, 171) AND subcode = 0 
                 THEN 'Other Income'
+                THEN 'Other Income'
             
             -- No classification if row doesn't match above patterns
             ELSE NULL
@@ -68,23 +69,48 @@ WITH classified_data AS (
         -- ============================================================================
         CASE
             -- Tax Revenue: Property tax, business tax, etc.
-            WHEN majorcode = 110 AND subcode = 0 
-                THEN 'Tax Revenue'
+            WHEN subcode IN (1100101, 1100103, 1100105, 1100106, 1100107, 1100201, 1100301, 1100401, 1100501, 1100104) 
+                THEN 'Property Tax'
+
+            WHEN subcode IN (1101101, 1101199, 1101103, 1101104) 
+                THEN 'Advertisement Tax'
+
+            WHEN subcode IN (1105200, 1105201) 
+                THEN 'Cess'
+
+            WHEN subcode IN (1109001, 1109002) 
+                THEN 'Tax Remission'        
             
+            WHEN subcode IN (1105101, 1105102, 1105103) 
+                THEN 'Octroi and toll'
+
+            WHEN subcode IN (1109003, 1109004) 
+                THEN 'Tax refund and early Rebate'
+
+            WHEN subcode IN (1100108, 1100701, 1100801, 1101200, 1108001) 
+                THEN 'Other Tax'
+
+            WHEN subcode IN (1100102) 
+                THEN 'Vacant Land Tax'
+
             -- Fees and User Charges: License fees, registration, service charges
             WHEN majorcode = 130 AND subcode = 0 
+                THEN 'Fees and User Charges'
                 THEN 'Fees and User Charges'
             
             -- Sales and Hire Charges: Revenue from selling municipal assets/services
             WHEN majorcode = 140 AND subcode = 0 
                 THEN 'Sales and Hire Charges'
+                THEN 'Sales and Hire Charges'
             
             -- Rental Income: Lease/rent from municipal properties
             WHEN majorcode = 150 AND subcode = 0 
                 THEN 'Rental Income'
+                THEN 'Rental Income'
             
             -- Other OSR: Miscellaneous own source revenue not in above categories
             WHEN majorcode = 180 AND subcode = 0 
+                THEN 'Other Income'
                 THEN 'Other Income'
             
             -- No classification if outside OSR majorcode range
@@ -99,7 +125,7 @@ WITH classified_data AS (
         CASE
             -- Property tax detailed breakdown: subcodes 1100101-1100104
             -- These represent individual property tax components/slabs
-            WHEN subcode IN (1100101, 1100102, 1100103, 1100104) 
+            WHEN subcode IN (1100101, 1100103, 1100105, 1100106, 1100107, 1100201, 1100301, 1100401, 1100501, 1100104) 
                 THEN 'Tax Revenue'
             
             -- No classification if subcode not in property tax range
@@ -135,8 +161,11 @@ WHERE (
     OR (majorcode = 120 AND subcode = 0)
     OR (majorcode = 160 AND subcode = 0)
     OR (majorcode IN (170, 171) AND subcode = 0)
-    -- Property tax detail rows: specific subcodes regardless of majorcode
-    OR subcode IN (1100101, 1100102, 1100103, 1100104)
+    --OSR sub-category rows: specific subcodes for property tax, fees, sales, rental, other tax.
+    -- Either of the conditions below can be used to filter rows - using subcode directly or checking if osr is not null. Using osr is more robust in case we want to expand the subcode list in future without updating the filter.
+    --OR subcode IN (1100101, 1100102, 1100103, 1100104, 1100105, 1100106, 1100107, 1100108, 1100201, 1100301, 1100401, 1100501, 1100701, 1100801, 1101101, 1101103, 1101104, 1101199, 1101200, 1105101, 1105102, 1105103, 1105200, 1105201, 1108001, 1109001, 1109002, 1109003, 1109004)
+    OR revenue IS NOT NULL OR osr IS NOT NULL OR property_tax IS NOT NULL
+
 )
 
 -- Sort by geography, time, and code hierarchy for readability
