@@ -129,6 +129,7 @@ property_tax_collection_all AS (
 
 financial_raw AS (
     SELECT
+        LOWER(REGEXP_REPLACE(BTRIM(l.ulb::TEXT), '[[:space:]]+', ' ', 'g')) AS ulb_join_key,
         BTRIM(l.ulb::TEXT) AS ulb_name,
         BTRIM(l.year::TEXT) AS financial_year,
 
@@ -141,7 +142,8 @@ financial_raw AS (
 
 financial_values AS (
     SELECT
-        ulb_name,
+        ulb_join_key,
+        MAX(ulb_name) AS ulb_name,
         financial_year,
 
         MAX(
@@ -389,12 +391,13 @@ financial_values AS (
 
     FROM financial_raw
     GROUP BY
-        ulb_name,
+        ulb_join_key,
         financial_year
 ),
 
 base_metrics AS (
     SELECT
+        ulb_join_key,
         ulb_name,
         financial_year,
 
@@ -445,7 +448,8 @@ base_metrics AS (
 
 cagr_metrics AS (
     SELECT
-        ulb_name,
+        ulb_join_key,
+        MAX(ulb_name) AS ulb_name,
         'CAGR' AS financial_year,
 
         CASE
@@ -813,7 +817,7 @@ cagr_metrics AS (
         END AS total_expenditure
 
     FROM base_metrics
-    GROUP BY ulb_name
+    GROUP BY ulb_join_key
 ),
 
 financials_all AS (
@@ -888,7 +892,7 @@ financials_total_adjusted_base AS (
 
     FROM final_base fb
     LEFT JOIN base_metrics bm
-        ON LOWER(BTRIM(fb.ulb_name)) = LOWER(BTRIM(bm.ulb_name))
+        ON LOWER(REGEXP_REPLACE(BTRIM(fb.ulb_name::TEXT), '[[:space:]]+', ' ', 'g')) = bm.ulb_join_key
         AND fb.financial_year = bm.financial_year
     LEFT JOIN property_tax_collection_base ptc
         ON BTRIM(fb.ulb_id::TEXT) = BTRIM(ptc.ulb_id::TEXT)
@@ -990,7 +994,7 @@ SELECT
 
 FROM final_base fb
 LEFT JOIN financials_all fa
-    ON LOWER(BTRIM(fb.ulb_name)) = LOWER(BTRIM(fa.ulb_name))
+    ON LOWER(REGEXP_REPLACE(BTRIM(fb.ulb_name::TEXT), '[[:space:]]+', ' ', 'g')) = fa.ulb_join_key
     AND fb.financial_year = fa.financial_year
 
 LEFT JOIN financials_total_adjusted_all fta
