@@ -855,6 +855,93 @@ final_base AS (
         ON u.state_id = s._id
     LEFT JOIN iso_codes i
         ON s.name = i.state
+),
+
+
+financials_total_adjusted_base AS (
+    SELECT
+        fb.ulb_id,
+        fb.ulb_name,
+        fb.financial_year,
+
+        CASE
+            WHEN bm.total_own_source_revenue IS NULL
+             AND bm.property_tax IS NULL
+             AND ptc.total_property_tax_collection IS NULL
+                THEN NULL
+            ELSE
+                COALESCE(bm.total_own_source_revenue, 0)
+                - COALESCE(bm.property_tax, 0)
+                + COALESCE(ptc.total_property_tax_collection, 0)
+        END AS total_own_source_revenue,
+
+        CASE
+            WHEN bm.total_revenue IS NULL
+             AND bm.property_tax IS NULL
+             AND ptc.total_property_tax_collection IS NULL
+                THEN NULL
+            ELSE
+                COALESCE(bm.total_revenue, 0)
+                - COALESCE(bm.property_tax, 0)
+                + COALESCE(ptc.total_property_tax_collection, 0)
+        END AS total_revenue
+
+    FROM final_base fb
+    LEFT JOIN base_metrics bm
+        ON LOWER(BTRIM(fb.ulb_name)) = LOWER(BTRIM(bm.ulb_name))
+        AND fb.financial_year = bm.financial_year
+    LEFT JOIN property_tax_collection_base ptc
+        ON BTRIM(fb.ulb_id::TEXT) = BTRIM(ptc.ulb_id::TEXT)
+        AND fb.financial_year = ptc.financial_year
+    WHERE fb.financial_year <> 'CAGR'
+),
+
+financials_total_adjusted_cagr AS (
+    SELECT
+        ulb_id,
+        ulb_name,
+        'CAGR' AS financial_year,
+
+        CASE
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_own_source_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_own_source_revenue END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_own_source_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_own_source_revenue END) >= 0
+                THEN ROUND(((POWER(
+                    MAX(CASE WHEN financial_year = '2022-23' THEN total_own_source_revenue END)
+                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN total_own_source_revenue END), 0),
+                    1.0 / 3
+                ) - 1) * 100)::NUMERIC, 2)
+            ELSE NULL
+        END AS total_own_source_revenue,
+
+        CASE
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_revenue END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_revenue END) >= 0
+                THEN ROUND(((POWER(
+                    MAX(CASE WHEN financial_year = '2022-23' THEN total_revenue END)
+                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN total_revenue END), 0),
+                    1.0 / 3
+                ) - 1) * 100)::NUMERIC, 2)
+            ELSE NULL
+        END AS total_revenue
+
+    FROM financials_total_adjusted_base
+    GROUP BY
+        ulb_id,
+        ulb_name
+),
+
+financials_total_adjusted_all AS (
+    SELECT * FROM financials_total_adjusted_base
+
+    UNION ALL
+
+    SELECT * FROM financials_total_adjusted_cagr
 )
 
 SELECT
@@ -868,11 +955,11 @@ SELECT
     fb.area,
     b.no_of_bonds_raised AS "No Of Bonds Raised",
     b.amount_raised_in_cr AS "Amount Raised in Cr",
-    fa.total_own_source_revenue AS "Total Own Source Revenue",
+    fta.total_own_source_revenue AS "Total Own Source Revenue",
     fa.revenue_grants AS "Revenue Grants",
     fa.assigned_revenue AS "Assigned Revenue",
     fa.other_income AS "Other Income",
-    fa.total_revenue AS "Total Revenue",
+    fta.total_revenue AS "Total Revenue",
     fa.tax_revenue AS "Tax Revenue",
     fa.non_tax_revenue AS "Non-Tax Revenue",
     fa.property_tax AS "Property Tax",
@@ -905,6 +992,10 @@ FROM final_base fb
 LEFT JOIN financials_all fa
     ON LOWER(BTRIM(fb.ulb_name)) = LOWER(BTRIM(fa.ulb_name))
     AND fb.financial_year = fa.financial_year
+
+LEFT JOIN financials_total_adjusted_all fta
+    ON BTRIM(fb.ulb_id::TEXT) = BTRIM(fta.ulb_id::TEXT)
+    AND fb.financial_year = fta.financial_year
 
 LEFT JOIN property_tax_collection_all ptc
     ON BTRIM(fb.ulb_id::TEXT) = BTRIM(ptc.ulb_id::TEXT)
