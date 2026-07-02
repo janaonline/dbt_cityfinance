@@ -68,16 +68,13 @@ years AS (
         9999 AS financial_year_start
 ),
 
-/* NEW: Property tax collection from propertytaxopmappers
-   displayPriority 1.17 = Total Collection
-*/
 total_property_tax_collection AS (
     SELECT
         BTRIM(ptm.ulb::TEXT) AS ulb_id,
         yb.financial_year,
         yb.year_id,
         yb.financial_year_start,
-        {{ safe_numeric('ptm.value') }} AS value
+        {{ safe_numeric('ptm.value') }} * 100000 AS value
     FROM {{ source('cityfinance_prod', 'propertytaxopmappers') }} ptm
     LEFT JOIN years_base yb
         ON BTRIM(ptm.year::TEXT) = BTRIM(yb.year_id::TEXT)
@@ -413,19 +410,9 @@ base_metrics AS (
         property_tax,
 
         ROUND(
-            ((tax_revenue / NULLIF(total_own_source_revenue, 0)) * 100)::NUMERIC,
-            2
-        ) AS tax_revenue_as_pct_of_osr,
-
-        ROUND(
             (((total_own_source_revenue - tax_revenue) / NULLIF(total_own_source_revenue, 0)) * 100)::NUMERIC,
             2
         ) AS non_tax_revenue_as_pct_of_osr,
-
-        ROUND(
-            ((property_tax / NULLIF(total_own_source_revenue, 0)) * 100)::NUMERIC,
-            2
-        ) AS property_tax_as_pct_of_osr,
 
         secured_loans,
         unsecured_loans,
@@ -565,20 +552,6 @@ cagr_metrics AS (
         END AS property_tax,
 
         CASE
-            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END) IS NULL
-                THEN -100
-            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END) >= 0
-                THEN ROUND(((POWER(
-                    MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END)
-                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END), 0),
-                    1.0 / 3
-                ) - 1) * 100)::NUMERIC, 2)
-            ELSE NULL
-        END AS tax_revenue_as_pct_of_osr,
-
-        CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN non_tax_revenue_as_pct_of_osr END) > 0
              AND MAX(CASE WHEN financial_year = '2022-23' THEN non_tax_revenue_as_pct_of_osr END) IS NULL
                 THEN -100
@@ -591,20 +564,6 @@ cagr_metrics AS (
                 ) - 1) * 100)::NUMERIC, 2)
             ELSE NULL
         END AS non_tax_revenue_as_pct_of_osr,
-
-        CASE
-            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END) IS NULL
-                THEN -100
-            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END) >= 0
-                THEN ROUND(((POWER(
-                    MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END)
-                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END), 0),
-                    1.0 / 3
-                ) - 1) * 100)::NUMERIC, 2)
-            ELSE NULL
-        END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN secured_loans END) > 0
@@ -876,7 +835,7 @@ financials_total_adjusted_base AS (
             ELSE
                 COALESCE(bm.total_own_source_revenue, 0)
                 - COALESCE(bm.property_tax, 0)
-                + COALESCE(ptc.total_property_tax_collection, 0)
+                + COALESCE(ptc.total_property_tax_collection, bm.property_tax, 0)
         END AS total_own_source_revenue,
 
         CASE
@@ -887,8 +846,43 @@ financials_total_adjusted_base AS (
             ELSE
                 COALESCE(bm.total_revenue, 0)
                 - COALESCE(bm.property_tax, 0)
-                + COALESCE(ptc.total_property_tax_collection, 0)
-        END AS total_revenue
+                + COALESCE(ptc.total_property_tax_collection, bm.property_tax, 0)
+        END AS total_revenue,
+
+        ROUND(
+            (COALESCE(ptc.total_property_tax_collection, bm.property_tax, 0) / NULLIF(
+                CASE
+                    WHEN bm.total_own_source_revenue IS NULL
+                     AND bm.property_tax IS NULL
+                     AND ptc.total_property_tax_collection IS NULL
+                        THEN NULL
+                    ELSE
+                        COALESCE(bm.total_own_source_revenue, 0)
+                        - COALESCE(bm.property_tax, 0)
+                        + COALESCE(ptc.total_property_tax_collection, bm.property_tax, 0)
+                END, 0
+            ) * 100)::NUMERIC,
+            2
+        ) AS property_tax_as_pct_of_osr,
+
+        ROUND(
+            (
+                (COALESCE(bm.tax_revenue, 0) - COALESCE(bm.property_tax, 0) + COALESCE(ptc.total_property_tax_collection, bm.property_tax, 0))
+                / NULLIF(
+                    CASE
+                        WHEN bm.total_own_source_revenue IS NULL
+                         AND bm.property_tax IS NULL
+                         AND ptc.total_property_tax_collection IS NULL
+                            THEN NULL
+                        ELSE
+                            COALESCE(bm.total_own_source_revenue, 0)
+                            - COALESCE(bm.property_tax, 0)
+                            + COALESCE(ptc.total_property_tax_collection, bm.property_tax, 0)
+                    END, 0
+                ) * 100
+            )::NUMERIC,
+            2
+        ) AS tax_revenue_as_pct_of_osr
 
     FROM final_base fb
     LEFT JOIN base_metrics bm
@@ -932,7 +926,35 @@ financials_total_adjusted_cagr AS (
                     1.0 / 3
                 ) - 1) * 100)::NUMERIC, 2)
             ELSE NULL
-        END AS total_revenue
+        END AS total_revenue,
+
+        CASE
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END) >= 0
+                THEN ROUND(((POWER(
+                    MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END)
+                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END), 0),
+                    1.0 / 3
+                ) - 1) * 100)::NUMERIC, 2)
+            ELSE NULL
+        END AS property_tax_as_pct_of_osr,
+
+        CASE
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END) >= 0
+                THEN ROUND(((POWER(
+                    MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END)
+                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END), 0),
+                    1.0 / 3 
+                ) - 1) * 100)::NUMERIC, 2)
+            ELSE NULL
+        END AS tax_revenue_as_pct_of_osr
 
     FROM financials_total_adjusted_base
     GROUP BY
@@ -959,21 +981,29 @@ SELECT
     fb.area,
     b.no_of_bonds_raised AS "No Of Bonds Raised",
     b.amount_raised_in_cr AS "Amount Raised in Cr",
+    
+    -- NEW: Pulling the Initial (unadjusted) Total Own Source Revenue from fa
+    fa.total_own_source_revenue AS "Initial Total Own Source Revenue",
+    
+    -- Original: The newly adjusted Total Own Source Revenue from fta
     fta.total_own_source_revenue AS "Total Own Source Revenue",
+    
     fa.revenue_grants AS "Revenue Grants",
     fa.assigned_revenue AS "Assigned Revenue",
     fa.other_income AS "Other Income",
+
+    fa.total_revenue AS "Intial Total Revenue",
+
     fta.total_revenue AS "Total Revenue",
     fa.tax_revenue AS "Tax Revenue",
     fa.non_tax_revenue AS "Non-Tax Revenue",
     fa.property_tax AS "Property Tax",
 
-    -- NEW: Property tax collection from propertytaxopmappers displayPriority 1.17
     ptc.total_property_tax_collection AS "Total Property Tax Collection",
 
-    fa.tax_revenue_as_pct_of_osr AS "Tax Revenue as % of OSR",
+    fta.tax_revenue_as_pct_of_osr AS "Tax Revenue as % of OSR",
     fa.non_tax_revenue_as_pct_of_osr AS "Non-Tax Revenue as % of OSR",
-    fa.property_tax_as_pct_of_osr AS "Property Tax as % of OSR",
+    fta.property_tax_as_pct_of_osr AS "Property Tax as % of OSR",
 
     fa.secured_loans AS "Secured Loans",
     fa.unsecured_loans AS "Unsecured Loans",
