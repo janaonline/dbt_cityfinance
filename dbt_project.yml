@@ -90,7 +90,13 @@ models:
        marts:
         +schema: cf_requests             # All marts models go to this schema
         +tags: ['afs_analysis']          # Add tags for selection
-        +materialized: table             # Materialize as tables by default         
+        +materialized: table             # Materialize as tables by default  
+
+    nmam_ulb_response: # to run the NMAM ULB response models : dbt run --select tag:nmam_ulb_response
+       marts:
+        +schema: cf_requests             # All marts models go to this schema
+        +tags: ['nmam_ulb_response']          # Add tags for selection
+        +materialized: table             # Materialize as tables by default           
 
 
   elementary:
