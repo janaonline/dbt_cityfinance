@@ -892,7 +892,7 @@ SELECT
                     NOW() AT TIME ZONE 'Asia/Kolkata'
                 )::DATE
             THEN 'Last Week'
-        ELSE 'Older'
+        ELSE 'Prior Weeks'
     END AS "Update_Period",
 {% for resolved_column in resolved_columns %}
 {% set output_alias = resolved_column[1] %}
