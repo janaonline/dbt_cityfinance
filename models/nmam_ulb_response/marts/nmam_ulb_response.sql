@@ -4,6 +4,23 @@
     tags = ['nmam_ulb_response']
 ) }}
 
+{#
+  This model joins the published ULB master list against NMAM readiness-survey
+  responses (a Google Form export) keyed on census code, and reports one row
+  per ULB with the latest response's answers plus availability/staleness
+  metadata.
+
+  The Jinja block below (through ~line 460) is a defensive column-mapping
+  layer: Google Form headers get renamed/truncated by Postgres and by
+  re-exports, so instead of hardcoding source column names we fuzzy-match
+  each expected header against the live source table at compile time and
+  fail loudly (raise_compiler_error) if a column goes missing or becomes
+  ambiguous. `resolved_columns` is the payoff: a list of
+  [actual_source_column_name, stable_output_alias] pairs used throughout the
+  CTEs below. The actual reporting logic starts at the `WITH states AS (...`
+  block further down.
+#}
+
 {% set nmam_relation = source('afs_analysis', 'nmam_ulb_response') %}
 
 {#
@@ -469,6 +486,21 @@
 {% endif %}
 
 WITH states AS (
+    /*
+    Purpose:
+        Builds the list of valid, non-Union-Territory states used to scope
+        the ULB master list and to join in each state's ISO code.
+
+    Inputs:
+        - cityfinance_prod.states (_id, name, "isUT")
+
+    Outputs:
+        - state_id, state_name
+
+    Notes:
+        Union Territories are excluded here ("isUT" = 'false') so they never
+        reach the final ULB population.
+    */
     SELECT
         _id AS state_id,
         name AS state_name
@@ -477,7 +509,23 @@ WITH states AS (
 ),
 
 ulb_types AS (
-    /* Resolve the ulbs.ulbType object ID to the ULB type name. */
+    /*
+    Purpose:
+        Resolves the ulbs."ulbType" object-id reference to a human-readable
+        ULB type name (e.g. Municipal Corporation, Municipality).
+
+    Inputs:
+        - market_readiness.ulbtypes (_id, name, "isActive")
+
+    Outputs:
+        - ulb_type_id, ulb_type_name
+
+    Notes:
+        _id is a quoted Mongo ObjectId string, so it's BTRIM'd of
+        surrounding quotes/whitespace before joining (ulb_master applies the
+        same cleanup to ulbs."ulbType"). Grouped with MAX(name) defensively,
+        in case a type id ever has more than one row.
+    */
     SELECT
         BTRIM(_id::TEXT, ' "') AS ulb_type_id,
         MAX(name) AS ulb_type_name
@@ -487,7 +535,24 @@ ulb_types AS (
 ),
 
 iso_codes AS (
-    /* Aggregate defensively so the ISO join cannot duplicate a ULB row. */
+    /*
+    Purpose:
+        Maps each state name to its ISO code for display in the final
+        output.
+
+    Inputs:
+        - cityfinance_prod.iso_codes (state, iso_code)
+
+    Outputs:
+        - state_join_key, iso_code
+
+    Notes:
+        Aggregated (GROUP BY + MAX) rather than selected directly so the join
+        into ulb_master can never fan out and duplicate a ULB row, even if
+        the source ever has more than one row per state. state_join_key is a
+        normalized text match key rather than an _id join, since iso_codes
+        has no foreign key back to states.
+    */
     SELECT
         LOWER(BTRIM(state::TEXT)) AS state_join_key,
         MAX(iso_code) AS iso_code
@@ -496,8 +561,28 @@ iso_codes AS (
 ),
 
 ulb_master AS (
-    /* Base population: one row per active, published non-UT ULB.
-       Use censusCode when available; otherwise fall back to sbCode. */
+    /*
+    Purpose:
+        Establishes the base population for this report: one row per
+        active, published, non-UT ULB, with its state, ULB type, ISO code,
+        and a single resolved census code.
+
+    Inputs:
+        - cityfinance_prod.ulbs (_id, code, state, name, "ulbType",
+          "censusCode", "sbCode", "isActive", "isPublish")
+        - states, ulb_types, iso_codes
+
+    Outputs:
+        - ulb_id, ulb_code, state_name, ulb_name, "ulbType", iso_code,
+          census_code
+
+    Notes:
+        census_code prefers "censusCode" and falls back to "sbCode" when
+        blank, since not every ULB has a census code assigned yet. This is
+        the key NMAM responses are ultimately matched against (see
+        nmam_ranked/nmam_one_response below) — any ULB here without a
+        census_code can never match a response, by design.
+    */
     SELECT
         u._id AS ulb_id,
         u.code AS ulb_code,
@@ -527,9 +612,26 @@ ulb_master AS (
 
 nmam_timestamp_raw AS (
     /*
-      Normalize the source timestamp as text. This supports timestamp values
-      stored as plain text, JSON-style quoted text, or PostgreSQL timestamps.
-      Example supported value: 2026-08-07T17:21:57
+    Purpose:
+        Pulls in every column of the raw NMAM survey export and produces a
+        cleaned, trimmed text version of the response timestamp for the
+        following CTEs to parse.
+
+    Inputs:
+        - {{ nmam_relation }} (all columns, via n.*)
+        - resolved_columns[0] — the "Timestamp" source column, resolved by
+          the Jinja header-matching block above
+
+    Outputs:
+        - response_timestamp_raw
+
+    Notes:
+        The source "Timestamp" column is free text (varchar), not a native
+        timestamp — it has been observed holding both a DD/MM/YYYY slash
+        format and a T-separated near-ISO format (see nmam_timestamp_parsed
+        for how those are actually interpreted). This step only strips
+        surrounding quotes/whitespace; NULLIF collapses an empty result to
+        NULL instead of ''.
     */
     SELECT
         n.*,
@@ -547,9 +649,23 @@ nmam_timestamp_raw AS (
 
 nmam_timestamp_extracted AS (
     /*
-      Extract the date-time from anywhere in the source value instead of
-      requiring the value to begin at the first character. This avoids NULL
-      results caused by quotes, JSON wrappers, or invisible whitespace.
+    Purpose:
+        Detects which of the two known raw timestamp shapes a row is in,
+        and extracts the matching substring for each.
+
+    Inputs:
+        - response_timestamp_raw
+
+    Outputs:
+        - iso_timestamp_text   (e.g. "2026-10-07T16:21:56")
+        - dmy_timestamp_text   (e.g. "13/07/2026 11:51:41")
+
+    Notes:
+        SUBSTRING(... FROM pattern) matches anywhere in the string rather
+        than requiring the match to start at position 1, so stray wrapping
+        quotes or whitespace that survived nmam_timestamp_raw's cleanup
+        don't cause a NULL. A given row matches at most one of the two
+        patterns; nmam_timestamp_parsed picks whichever is non-NULL.
     */
     SELECT
         n.*,
@@ -565,18 +681,50 @@ nmam_timestamp_extracted AS (
 ),
 
 nmam_timestamp_parsed AS (
+    /*
+    Purpose:
+        Converts whichever raw timestamp text was extracted into an actual
+        TIMESTAMP value, using the correct field order for each observed
+        shape.
+
+    Inputs:
+        - iso_timestamp_text, dmy_timestamp_text
+
+    Outputs:
+        - response_timestamp_parsed
+
+    Notes:
+        dmy_timestamp_text is genuinely DD/MM/YYYY — confirmed against live
+        data (one raw value is "23/06/2026", and 23 cannot be a month, so
+        the first field must be the day).
+
+        iso_timestamp_text LOOKS like ISO-8601 (YYYY-??-??THH:MI:SS) but is
+        NOT: profiling every row carrying this shape shows the segment in
+        the "day" position is 100% constant ("07") while the segment in the
+        "month" position varies across eleven different values — the
+        reverse of what real submission dates would look like, and
+        consistent with a one-off historical backfill (all these rows share
+        a single _airbyte_extracted_at) whose export swapped day and month
+        while keeping an ISO-looking separator. So this branch is parsed
+        with an explicit 'YYYY-DD-MM HH24:MI:SS' mask rather than a bare
+        ::TIMESTAMP cast, which would silently accept the swapped value
+        since both fields are <= 12 and never error. If a genuinely
+        standard YYYY-MM-DD source ever appears here, this mask will need
+        revisiting.
+    */
     SELECT
         n.*,
         CASE
-            /* ISO-8601: 2026-08-07T17:21:57 */
             WHEN n.iso_timestamp_text IS NOT NULL
-            THEN REPLACE(
-                    n.iso_timestamp_text,
-                    'T',
-                    ' '
+            THEN TO_TIMESTAMP(
+                    REPLACE(
+                        n.iso_timestamp_text,
+                        'T',
+                        ' '
+                    ),
+                    'YYYY-DD-MM HH24:MI:SS'
                  )::TIMESTAMP
 
-            /* Google Form display format: 07/08/2026 17:21:57 */
             WHEN n.dmy_timestamp_text IS NOT NULL
             THEN TO_TIMESTAMP(
                     REGEXP_REPLACE(
@@ -594,13 +742,55 @@ nmam_timestamp_parsed AS (
 ),
 
 nmam_prepared AS (
+    /*
+    Purpose:
+        Derives the date-only value used for staleness bucketing, from the
+        parsed timestamp.
+
+    Inputs:
+        - response_timestamp_parsed
+
+    Outputs:
+        - response_date_parsed
+
+    Notes:
+        Kept as its own thin CTE (rather than folded into
+        nmam_timestamp_parsed) so the parsing CASE and the date truncation
+        stay easy to read separately.
+    */
     SELECT
         n.*,
         n.response_timestamp_parsed::DATE AS response_date_parsed
     FROM nmam_timestamp_parsed n
 ),
+
 nmam_ranked AS (
-    /* Keep only the latest NMAM response per mapped census code. */
+    /*
+    Purpose:
+        Reduces the survey export to one row per mapped census code,
+        keeping only the most recent response, and carries forward every
+        requested output column under its stable alias.
+
+    Inputs:
+        - nmam_prepared (all rows)
+        - mapping_column — the "ULB Code (as per City Finance Portal...)"
+          source column, resolved by the Jinja header-matching block above
+        - resolved_columns — [source_column, output_alias] pairs for every
+          requested Google Form question/field
+
+    Outputs:
+        - nmam_census_code (cleaned join key)
+        - one column per resolved_columns output_alias
+        - response_timestamp_parsed, response_date_parsed
+        - response_rank
+
+    Notes:
+        A ULB can submit the survey more than once (e.g. a correction);
+        only the latest response per census code should count. Rows with a
+        blank/NULL mapped census code are excluded up front, since they
+        could never match a ULB and would otherwise all collide into a
+        single NULL partition.
+    */
     SELECT
         NULLIF(
             BTRIM(n.{{ adapter.quote(mapping_column) }}::TEXT, ' "'),
@@ -627,6 +817,23 @@ nmam_ranked AS (
 ),
 
 nmam_one_response AS (
+    /*
+    Purpose:
+        Collapses nmam_ranked down to exactly the winning
+        (response_rank = 1) row per census code.
+
+    Inputs:
+        - nmam_ranked
+
+    Outputs:
+        - nmam_census_code and every resolved output column, unchanged,
+          filtered to response_rank = 1
+
+    Notes:
+        Kept as a separate CTE from nmam_ranked purely for readability — it
+        splits "how we rank responses" from "the response we actually
+        keep" into two individually nameable steps.
+    */
     SELECT
         nmam_census_code,
 {% for resolved_column in resolved_columns %}
@@ -644,13 +851,14 @@ SELECT
     u."ulbType",
     u.iso_code,
     u.census_code,
+
     CASE
         WHEN n.nmam_census_code IS NOT NULL THEN 1
         ELSE 0
     END AS "Availability",
-    
+
     CASE
-        when u.census_code IS NOT NULL THEN 1
+        WHEN u.census_code IS NOT NULL THEN 1
         ELSE 0
     END AS "Total_Availability",
 
@@ -688,7 +896,14 @@ SELECT
     END AS "Update_Period",
 {% for resolved_column in resolved_columns %}
 {% set output_alias = resolved_column[1] %}
-{% if output_alias in question_options %}
+{% if output_alias == 'response_timestamp' %}
+    /* Rendered from the corrected, parsed timestamp (see
+       nmam_timestamp_parsed) instead of the raw source text, so this
+       column is always YYYY-MM-DD HH:MI:SS regardless of which raw shape
+       the row came in as. */
+    TO_CHAR(n.response_timestamp_parsed, 'YYYY-MM-DD HH24:MI:SS')
+        AS {{ adapter.quote(output_alias) }},
+{% elif output_alias in question_options %}
     CASE
         WHEN n.{{ adapter.quote(output_alias) }} IS NULL
           OR NULLIF(
@@ -719,12 +934,17 @@ SELECT
             THEN '{{ option | replace("'", "''") }}'
 {% endfor %}
         ELSE 'Other'
-    END AS {{ adapter.quote(output_alias) }}{% if not loop.last %},{% endif %}
+    END AS {{ adapter.quote(output_alias) }},
 {% else %}
     n.{{ adapter.quote(output_alias) }}
-        AS {{ adapter.quote(output_alias) }}{% if not loop.last %},{% endif %}
+        AS {{ adapter.quote(output_alias) }},
 {% endif %}
 {% endfor %}
+    to_char(
+        now() AT TIME ZONE 'Asia/Kolkata',
+        'FMMonth DD YYYY "at" HH12:MI am'
+    ) AS updated_at
+
 FROM ulb_master u
 
 LEFT JOIN nmam_one_response n
