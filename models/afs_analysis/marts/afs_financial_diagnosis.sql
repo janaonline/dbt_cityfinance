@@ -50,7 +50,7 @@ years_base AS (
         CAST(SPLIT_PART(year, '-', 1) AS INTEGER) AS financial_year_start
     FROM {{ source('cityfinance_prod', 'years') }}
     WHERE year ~ '^\d{4}-\d{2}$'
-      AND CAST(SPLIT_PART(year, '-', 1) AS INTEGER) BETWEEN 2018 AND 2022
+      AND CAST(SPLIT_PART(year, '-', 1) AS INTEGER) BETWEEN 2018 AND 2023
 ),
 
 years AS (
@@ -134,7 +134,7 @@ financial_raw AS (
         COALESCE(NULLIF(l.indicators::TEXT, ''), '{}')::JSONB AS indicators_json
 
     FROM {{ source('afs_analysis', 'ledgerlogs') }} l
-    WHERE CAST(SPLIT_PART(BTRIM(l.year::TEXT), '-', 1) AS INTEGER) BETWEEN 2019 AND 2022
+    WHERE CAST(SPLIT_PART(BTRIM(l.year::TEXT), '-', 1) AS INTEGER) BETWEEN 2019 AND 2023
 ),
 
 financial_values AS (
