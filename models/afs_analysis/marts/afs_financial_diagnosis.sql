@@ -50,7 +50,7 @@ years_base AS (
         CAST(SPLIT_PART(year, '-', 1) AS INTEGER) AS financial_year_start
     FROM {{ source('cityfinance_prod', 'years') }}
     WHERE year ~ '^\d{4}-\d{2}$'
-      AND CAST(SPLIT_PART(year, '-', 1) AS INTEGER) BETWEEN 2018 AND 2022
+      AND CAST(SPLIT_PART(year, '-', 1) AS INTEGER) BETWEEN 2018 AND 2023
 ),
 
 years AS (
@@ -68,16 +68,13 @@ years AS (
         9999 AS financial_year_start
 ),
 
-/* NEW: Property tax collection from propertytaxopmappers
-   displayPriority 1.17 = Total Collection
-*/
 total_property_tax_collection AS (
     SELECT
         BTRIM(ptm.ulb::TEXT) AS ulb_id,
         yb.financial_year,
         yb.year_id,
         yb.financial_year_start,
-        {{ safe_numeric('ptm.value') }} AS value
+        {{ safe_numeric('ptm.value') }} * 100000 AS value
     FROM {{ source('cityfinance_prod', 'propertytaxopmappers') }} ptm
     LEFT JOIN years_base yb
         ON BTRIM(ptm.year::TEXT) = BTRIM(yb.year_id::TEXT)
@@ -129,6 +126,7 @@ property_tax_collection_all AS (
 
 financial_raw AS (
     SELECT
+        LOWER(REGEXP_REPLACE(BTRIM(l.ulb::TEXT), '[[:space:]]+', ' ', 'g')) AS ulb_join_key,
         BTRIM(l.ulb::TEXT) AS ulb_name,
         BTRIM(l.year::TEXT) AS financial_year,
 
@@ -136,12 +134,13 @@ financial_raw AS (
         COALESCE(NULLIF(l.indicators::TEXT, ''), '{}')::JSONB AS indicators_json
 
     FROM {{ source('afs_analysis', 'ledgerlogs') }} l
-    WHERE CAST(SPLIT_PART(BTRIM(l.year::TEXT), '-', 1) AS INTEGER) BETWEEN 2019 AND 2022
+    WHERE CAST(SPLIT_PART(BTRIM(l.year::TEXT), '-', 1) AS INTEGER) BETWEEN 2019 AND 2023
 ),
 
 financial_values AS (
     SELECT
-        ulb_name,
+        ulb_join_key,
+        MAX(ulb_name) AS ulb_name,
         financial_year,
 
         MAX(
@@ -389,12 +388,13 @@ financial_values AS (
 
     FROM financial_raw
     GROUP BY
-        ulb_name,
+        ulb_join_key,
         financial_year
 ),
 
 base_metrics AS (
     SELECT
+        ulb_join_key,
         ulb_name,
         financial_year,
 
@@ -410,19 +410,9 @@ base_metrics AS (
         property_tax,
 
         ROUND(
-            ((tax_revenue / NULLIF(total_own_source_revenue, 0)) * 100)::NUMERIC,
-            2
-        ) AS tax_revenue_as_pct_of_osr,
-
-        ROUND(
             (((total_own_source_revenue - tax_revenue) / NULLIF(total_own_source_revenue, 0)) * 100)::NUMERIC,
             2
         ) AS non_tax_revenue_as_pct_of_osr,
-
-        ROUND(
-            ((property_tax / NULLIF(total_own_source_revenue, 0)) * 100)::NUMERIC,
-            2
-        ) AS property_tax_as_pct_of_osr,
 
         secured_loans,
         unsecured_loans,
@@ -445,7 +435,8 @@ base_metrics AS (
 
 cagr_metrics AS (
     SELECT
-        ulb_name,
+        ulb_join_key,
+        MAX(ulb_name) AS ulb_name,
         'CAGR' AS financial_year,
 
         CASE
@@ -561,20 +552,6 @@ cagr_metrics AS (
         END AS property_tax,
 
         CASE
-            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END) IS NULL
-                THEN -100
-            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END) >= 0
-                THEN ROUND(((POWER(
-                    MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END)
-                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END), 0),
-                    1.0 / 3
-                ) - 1) * 100)::NUMERIC, 2)
-            ELSE NULL
-        END AS tax_revenue_as_pct_of_osr,
-
-        CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN non_tax_revenue_as_pct_of_osr END) > 0
              AND MAX(CASE WHEN financial_year = '2022-23' THEN non_tax_revenue_as_pct_of_osr END) IS NULL
                 THEN -100
@@ -587,20 +564,6 @@ cagr_metrics AS (
                 ) - 1) * 100)::NUMERIC, 2)
             ELSE NULL
         END AS non_tax_revenue_as_pct_of_osr,
-
-        CASE
-            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END) IS NULL
-                THEN -100
-            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END) > 0
-             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END) >= 0
-                THEN ROUND(((POWER(
-                    MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END)
-                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END), 0),
-                    1.0 / 3
-                ) - 1) * 100)::NUMERIC, 2)
-            ELSE NULL
-        END AS property_tax_as_pct_of_osr,
 
         CASE
             WHEN MAX(CASE WHEN financial_year = '2019-20' THEN secured_loans END) > 0
@@ -813,7 +776,7 @@ cagr_metrics AS (
         END AS total_expenditure
 
     FROM base_metrics
-    GROUP BY ulb_name
+    GROUP BY ulb_join_key
 ),
 
 financials_all AS (
@@ -855,6 +818,156 @@ final_base AS (
         ON u.state_id = s._id
     LEFT JOIN iso_codes i
         ON s.name = i.state
+),
+
+
+financials_total_adjusted_base AS (
+    SELECT
+        fb.ulb_id,
+        fb.ulb_name,
+        fb.financial_year,
+
+        CASE
+            WHEN bm.total_own_source_revenue IS NULL
+             AND bm.property_tax IS NULL
+             AND ptc.total_property_tax_collection IS NULL
+                THEN NULL
+            ELSE
+                COALESCE(bm.total_own_source_revenue, 0)
+                - COALESCE(bm.property_tax, 0)
+                + COALESCE(ptc.total_property_tax_collection, bm.property_tax, 0)
+        END AS total_own_source_revenue,
+
+        CASE
+            WHEN bm.total_revenue IS NULL
+             AND bm.property_tax IS NULL
+             AND ptc.total_property_tax_collection IS NULL
+                THEN NULL
+            ELSE
+                COALESCE(bm.total_revenue, 0)
+                - COALESCE(bm.property_tax, 0)
+                + COALESCE(ptc.total_property_tax_collection, bm.property_tax, 0)
+        END AS total_revenue,
+
+        ROUND(
+            (COALESCE(ptc.total_property_tax_collection, bm.property_tax, 0) / NULLIF(
+                CASE
+                    WHEN bm.total_own_source_revenue IS NULL
+                     AND bm.property_tax IS NULL
+                     AND ptc.total_property_tax_collection IS NULL
+                        THEN NULL
+                    ELSE
+                        COALESCE(bm.total_own_source_revenue, 0)
+                        - COALESCE(bm.property_tax, 0)
+                        + COALESCE(ptc.total_property_tax_collection, bm.property_tax, 0)
+                END, 0
+            ) * 100)::NUMERIC,
+            2
+        ) AS property_tax_as_pct_of_osr,
+
+        ROUND(
+            (
+                (COALESCE(bm.tax_revenue, 0) - COALESCE(bm.property_tax, 0) + COALESCE(ptc.total_property_tax_collection, bm.property_tax, 0))
+                / NULLIF(
+                    CASE
+                        WHEN bm.total_own_source_revenue IS NULL
+                         AND bm.property_tax IS NULL
+                         AND ptc.total_property_tax_collection IS NULL
+                            THEN NULL
+                        ELSE
+                            COALESCE(bm.total_own_source_revenue, 0)
+                            - COALESCE(bm.property_tax, 0)
+                            + COALESCE(ptc.total_property_tax_collection, bm.property_tax, 0)
+                    END, 0
+                ) * 100
+            )::NUMERIC,
+            2
+        ) AS tax_revenue_as_pct_of_osr
+
+    FROM final_base fb
+    LEFT JOIN base_metrics bm
+        ON LOWER(REGEXP_REPLACE(BTRIM(fb.ulb_name::TEXT), '[[:space:]]+', ' ', 'g')) = bm.ulb_join_key
+        AND fb.financial_year = bm.financial_year
+    LEFT JOIN property_tax_collection_base ptc
+        ON BTRIM(fb.ulb_id::TEXT) = BTRIM(ptc.ulb_id::TEXT)
+        AND fb.financial_year = ptc.financial_year
+    WHERE fb.financial_year <> 'CAGR'
+),
+
+financials_total_adjusted_cagr AS (
+    SELECT
+        ulb_id,
+        ulb_name,
+        'CAGR' AS financial_year,
+
+        CASE
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_own_source_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_own_source_revenue END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_own_source_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_own_source_revenue END) >= 0
+                THEN ROUND(((POWER(
+                    MAX(CASE WHEN financial_year = '2022-23' THEN total_own_source_revenue END)
+                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN total_own_source_revenue END), 0),
+                    1.0 / 3
+                ) - 1) * 100)::NUMERIC, 2)
+            ELSE NULL
+        END AS total_own_source_revenue,
+
+        CASE
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_revenue END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN total_revenue END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN total_revenue END) >= 0
+                THEN ROUND(((POWER(
+                    MAX(CASE WHEN financial_year = '2022-23' THEN total_revenue END)
+                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN total_revenue END), 0),
+                    1.0 / 3
+                ) - 1) * 100)::NUMERIC, 2)
+            ELSE NULL
+        END AS total_revenue,
+
+        CASE
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END) >= 0
+                THEN ROUND(((POWER(
+                    MAX(CASE WHEN financial_year = '2022-23' THEN property_tax_as_pct_of_osr END)
+                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN property_tax_as_pct_of_osr END), 0),
+                    1.0 / 3
+                ) - 1) * 100)::NUMERIC, 2)
+            ELSE NULL
+        END AS property_tax_as_pct_of_osr,
+
+        CASE
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END) IS NULL
+                THEN -100
+            WHEN MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END) > 0
+             AND MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END) >= 0
+                THEN ROUND(((POWER(
+                    MAX(CASE WHEN financial_year = '2022-23' THEN tax_revenue_as_pct_of_osr END)
+                    / NULLIF(MAX(CASE WHEN financial_year = '2019-20' THEN tax_revenue_as_pct_of_osr END), 0),
+                    1.0 / 3 
+                ) - 1) * 100)::NUMERIC, 2)
+            ELSE NULL
+        END AS tax_revenue_as_pct_of_osr
+
+    FROM financials_total_adjusted_base
+    GROUP BY
+        ulb_id,
+        ulb_name
+),
+
+financials_total_adjusted_all AS (
+    SELECT * FROM financials_total_adjusted_base
+
+    UNION ALL
+
+    SELECT * FROM financials_total_adjusted_cagr
 )
 
 SELECT
@@ -868,21 +981,29 @@ SELECT
     fb.area,
     b.no_of_bonds_raised AS "No Of Bonds Raised",
     b.amount_raised_in_cr AS "Amount Raised in Cr",
-    fa.total_own_source_revenue AS "Total Own Source Revenue",
+    
+    -- NEW: Pulling the Initial (unadjusted) Total Own Source Revenue from fa
+    fa.total_own_source_revenue AS "Initial Total Own Source Revenue",
+    
+    -- Original: The newly adjusted Total Own Source Revenue from fta
+    fta.total_own_source_revenue AS "Total Own Source Revenue",
+    
     fa.revenue_grants AS "Revenue Grants",
     fa.assigned_revenue AS "Assigned Revenue",
     fa.other_income AS "Other Income",
-    fa.total_revenue AS "Total Revenue",
+
+    fa.total_revenue AS "Intial Total Revenue",
+
+    fta.total_revenue AS "Total Revenue",
     fa.tax_revenue AS "Tax Revenue",
     fa.non_tax_revenue AS "Non-Tax Revenue",
     fa.property_tax AS "Property Tax",
 
-    -- NEW: Property tax collection from propertytaxopmappers displayPriority 1.17
     ptc.total_property_tax_collection AS "Total Property Tax Collection",
 
-    fa.tax_revenue_as_pct_of_osr AS "Tax Revenue as % of OSR",
+    fta.tax_revenue_as_pct_of_osr AS "Tax Revenue as % of OSR",
     fa.non_tax_revenue_as_pct_of_osr AS "Non-Tax Revenue as % of OSR",
-    fa.property_tax_as_pct_of_osr AS "Property Tax as % of OSR",
+    fta.property_tax_as_pct_of_osr AS "Property Tax as % of OSR",
 
     fa.secured_loans AS "Secured Loans",
     fa.unsecured_loans AS "Unsecured Loans",
@@ -903,8 +1024,12 @@ SELECT
 
 FROM final_base fb
 LEFT JOIN financials_all fa
-    ON LOWER(BTRIM(fb.ulb_name)) = LOWER(BTRIM(fa.ulb_name))
+    ON LOWER(REGEXP_REPLACE(BTRIM(fb.ulb_name::TEXT), '[[:space:]]+', ' ', 'g')) = fa.ulb_join_key
     AND fb.financial_year = fa.financial_year
+
+LEFT JOIN financials_total_adjusted_all fta
+    ON BTRIM(fb.ulb_id::TEXT) = BTRIM(fta.ulb_id::TEXT)
+    AND fb.financial_year = fta.financial_year
 
 LEFT JOIN property_tax_collection_all ptc
     ON BTRIM(fb.ulb_id::TEXT) = BTRIM(ptc.ulb_id::TEXT)
