@@ -894,6 +894,39 @@ SELECT
             THEN 'Last Week'
         ELSE 'Prior Weeks'
     END AS "Update_Period",
+
+    CASE
+        WHEN n.nmam_census_code IS NULL THEN NULL
+        WHEN n.response_date_parsed IS NULL THEN NULL
+        WHEN n.response_date_parsed
+             >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE
+            THEN 1
+        WHEN n.response_date_parsed
+             = ((NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - 1)
+            THEN 2
+        WHEN n.response_date_parsed
+             >= DATE_TRUNC(
+                    'week',
+                    NOW() AT TIME ZONE 'Asia/Kolkata'
+                )::DATE
+         AND n.response_date_parsed
+             <= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE
+            THEN 4
+        WHEN n.response_date_parsed
+             >= (
+                    DATE_TRUNC(
+                        'week',
+                        NOW() AT TIME ZONE 'Asia/Kolkata'
+                    ) - INTERVAL '1 week'
+                )::DATE
+         AND n.response_date_parsed
+             < DATE_TRUNC(
+                    'week',
+                    NOW() AT TIME ZONE 'Asia/Kolkata'
+                )::DATE
+            THEN 5
+        ELSE 6
+    END AS "sort",
 {% for resolved_column in resolved_columns %}
 {% set output_alias = resolved_column[1] %}
 {% if output_alias == 'response_timestamp' %}
