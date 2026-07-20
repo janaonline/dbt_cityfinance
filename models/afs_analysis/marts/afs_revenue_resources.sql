@@ -26,7 +26,6 @@ iso_codes AS (
         iso_code
 ),
 
--- Maps the CityFinance year ID to its financial-year label.
 years_base AS (
     SELECT
         _id AS year_id,
@@ -115,12 +114,7 @@ financial_raw AS (
         ) BETWEEN 2019 AND 2022
 ),
 
-/*
-Property Tax collection from Property Tax OPM.
-
-displayPriority 1.17 represents Total Property Tax Collection.
-The stored value is in lakhs and is converted to INR.
-*/
+-- Property Tax collection from Property Tax OPM.
 total_property_tax_collection AS (
     SELECT
         BTRIM(ptm.ulb::TEXT) AS ulb_id,
@@ -141,7 +135,7 @@ line_item_master AS (
     FROM (
         VALUES
             -- Tax Revenue
-            ('11001', 1, 'tax', 'Property Tax*'),
+            ('11001', 1, 'tax', 'Property Tax'),
             ('11002', 2, 'tax', 'Water Supply and Drainage Tax'),
             ('11003', 3, 'tax', 'Sewerage Tax'),
             ('11004', 4, 'tax', 'Conservancy Tax'),
@@ -194,6 +188,14 @@ line_item_master AS (
                 'Other Non-Tax Revenue (Insurance Claim Recovery, Miscellaneous)'
             ),
 
+            -- Revenue Grants
+            (
+                '160',
+                401,
+                'revenue_grants',
+                'Revenue Grants'
+            ),
+
             -- Other Income
             (
                 '170',
@@ -215,12 +217,7 @@ line_item_master AS (
     )
 ),
 
-/*
-All ledger-based line-item hits except Property Tax.
-
-Property Tax line item 11001 is explicitly excluded because it is now
-sourced from propertytaxopmappers.
-*/
+-- All ledger-based line-item hits except Property Tax.
 ledger_line_item_hits AS (
     SELECT
         um.ulb_id,
@@ -239,13 +236,7 @@ ledger_line_item_hits AS (
         m.line_item_code <> '11001'
 ),
 
-/*
-Creates a Property Tax line-item hit when a valid Property Tax
-collection value is available for the ULB and financial year.
-
-A zero value is treated as available data, consistent with the
-existing ledger-line-item logic.
-*/
+-- Property Tax hit based on Property Tax OPM data.
 property_tax_line_item_hits AS (
     SELECT DISTINCT
         um.ulb_id,
@@ -253,7 +244,7 @@ property_tax_line_item_hits AS (
         'tax' AS category,
         '11001' AS line_item_code,
         1 AS sort_order,
-        'Property Tax*' AS label
+        'Property Tax' AS label
     FROM total_property_tax_collection ptc
     INNER JOIN ulb_master um
         ON ptc.ulb_id = um.ulb_id
@@ -261,7 +252,7 @@ property_tax_line_item_hits AS (
         ptc.value IS NOT NULL
 ),
 
--- Combines ledger-based line items with Property Tax OPM data.
+-- Combines ledger line items and Property Tax OPM data.
 line_item_hits AS (
     SELECT
         ulb_id,
@@ -299,7 +290,7 @@ deduped_line_item_hits AS (
         line_item_code
 ),
 
--- Compiles all years into one row per ULB.
+-- Compiles all line items into one row per ULB.
 compiled_line_items AS (
     SELECT
         ulb_id,
@@ -317,6 +308,13 @@ compiled_line_items AS (
         ) FILTER (
             WHERE category = 'assigned_revenue'
         ) AS assigned_revenue_with_data,
+
+        STRING_AGG(
+            label,
+            ', ' ORDER BY sort_order
+        ) FILTER (
+            WHERE category = 'revenue_grants'
+        ) AS revenue_grants_with_data,
 
         STRING_AGG(
             label,
@@ -365,6 +363,7 @@ final AS (
 
         cli.tax_line_items_with_data AS "Tax Revenue",
         cli.assigned_revenue_with_data AS "Assigned Revenue",
+        cli.revenue_grants_with_data AS "Revenue Grants",
         cli.other_income_with_data AS "Other Income",
         cli.non_tax_revenue_with_data AS "Non-Tax Revenue",
         cli.no_of_tax_line_items_with_data,
