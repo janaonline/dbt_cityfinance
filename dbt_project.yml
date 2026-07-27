@@ -98,6 +98,12 @@ models:
         +tags: ['nmam_ulb_response']          # Add tags for selection
         +materialized: table             # Materialize as tables by default           
 
+    cf_municipal_finance_rt: # to run the cf_municipal_finance_rt models : dbt run --select tag:cf_municipal_finance_rt
+        marts:
+        +schema: cf_requests
+        +tags: ['cf_municipal_finance_rt']
+        +materialized: table    
+
 
   elementary:
     +schema: "elementary"                      # Elementary package models go to this schema

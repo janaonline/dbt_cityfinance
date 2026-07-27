@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: cf_municipal_finance_rt
+    schema: cf_prod
+    tables: 
+      - name: datacollections 
+        identifier: datacollections
+      - name: lineitemslegends
+        identifier: lineitemslegends
+
+                     
