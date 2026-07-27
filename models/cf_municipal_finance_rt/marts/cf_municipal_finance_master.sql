@@ -21,7 +21,7 @@ datacollections AS (
 ),
 
 -- 🔹 inline the lineitemslegends transformation (removed view dependency)
-lineitemslegends AS (
+lineitemslegends AS MATERIALIZED (
     SELECT
         FLOOR({{ safe_numeric('"nmamCode"') }})::int AS nmamCode,
         FLOOR({{ safe_numeric('"majorCode"') }})::int AS majorCode,
