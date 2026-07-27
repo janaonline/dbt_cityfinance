@@ -866,8 +866,11 @@ SELECT
         WHEN n.nmam_census_code IS NULL THEN NULL
         WHEN n.response_date_parsed IS NULL THEN 'Invalid Timestamp'
         WHEN n.response_date_parsed
-             >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE
+             > (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE
             THEN 'Future'
+        WHEN n.response_date_parsed
+              = (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE
+            THEN 'Today'    
         WHEN n.response_date_parsed
              = ((NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - 1)
             THEN 'Yesterday'
