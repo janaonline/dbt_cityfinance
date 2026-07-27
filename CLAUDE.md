@@ -45,7 +45,7 @@ models/<module>/
   marts/            # final, table-materialized models with business logic
 ```
 
-Current modules: `property_tax_poc`, `grants_condition`, `grants_allocation`, `ap_api_poc`, `afs_digitisation_tracker`, `afs_analysis`, `market_readiness`, `nmam_ulb_response`. Most modules only have `marts/`; `property_tax_poc` is the one with a full `staging/` layer.
+Current modules: `property_tax_poc`, `grants_condition`, `grants_allocation`, `ap_api_poc`, `afs_digitisation_tracker`, `afs_analysis`, `market_readiness`, `nmam_ulb_response`, `cf_municipal_finance_rt`. Most modules only have `marts/`; `property_tax_poc` is the one with a full `staging/` layer.
 
 **Schema routing is entirely config-driven, not folder-driven.** Every module needs its own `models: Janaagraha: <module>: { staging: {...}, marts: {...} }` block in `dbt_project.yml` setting `+schema`, `+tags`, and `+materialized` (almost everything here is `table`). When adding a new module, add its block there — without it, models fall back to whatever schema `profiles.yml`/the calling platform provides.
 

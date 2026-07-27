@@ -19,7 +19,7 @@ WITH source_data AS (
         "updated_at",
         "headOfAccount",
         COALESCE(amount, 0) AS amount,
-        subcode
+        nmamcode
     FROM {{ ref('cf_municipal_finance_master') }}
 ),
 
@@ -37,53 +37,53 @@ aggregated_validations AS (
         -- For validations 3-4: Total Expenditure
         SUM(CASE WHEN "headOfAccount" = 'Expenditure' THEN amount ELSE 0 END) AS total_expenditure,
         
-        -- For validations 5, 20, 22: Tax Revenue (majorCode 110, subCode 0)
-        SUM(CASE WHEN majorcode = 110 AND subcode = 0 THEN amount ELSE 0 END) AS tax_revenue,
-        
+        -- For validations 5, 20, 22: Tax Revenue (majorCode 110, nmamCode = majorCode)
+        SUM(CASE WHEN majorcode = 110 AND nmamcode = majorcode THEN amount ELSE 0 END) AS tax_revenue,
+
         -- For validation 6: Establishment Expense (majorCode 210)
-        SUM(CASE WHEN majorcode = 210 AND subcode = 0 THEN amount ELSE 0 END) AS establishment_expense,
-        
+        SUM(CASE WHEN majorcode = 210 AND nmamcode = majorcode THEN amount ELSE 0 END) AS establishment_expense,
+
         -- For validations 7-8: Admin Expense (majorCode 220)
-        SUM(CASE WHEN majorcode = 220 AND subcode = 0 THEN amount ELSE 0 END) AS admin_expense,
-        
+        SUM(CASE WHEN majorcode = 220 AND nmamcode = majorcode THEN amount ELSE 0 END) AS admin_expense,
+
         -- For validation 9: Programme Expense (majorCode 250)
-        SUM(CASE WHEN majorcode = 250 AND subcode = 0 THEN amount ELSE 0 END) AS programme_expense,
-        
+        SUM(CASE WHEN majorcode = 250 AND nmamcode = majorcode THEN amount ELSE 0 END) AS programme_expense,
+
         -- For validation 10: Interest & Finance Charges (majorCode 240)
-        SUM(CASE WHEN majorcode = 240 AND subcode = 0 THEN amount ELSE 0 END) AS interest_finance_charges,
-        
+        SUM(CASE WHEN majorcode = 240 AND nmamcode = majorcode THEN amount ELSE 0 END) AS interest_finance_charges,
+
         -- For validation 11: Total Own Revenue (majorCode 110, 130, 140, 150, 180)
-        SUM(CASE WHEN majorcode IN (110, 130, 140, 150, 180) AND subcode = 0 THEN amount ELSE 0 END) AS total_own_revenue,
-        
+        SUM(CASE WHEN majorcode IN (110, 130, 140, 150, 180) AND nmamcode = majorcode THEN amount ELSE 0 END) AS total_own_revenue,
+
         -- For validation 12: Assigned Revenue (majorCode 120)
-        SUM(CASE WHEN majorcode = 120 AND subcode = 0 THEN amount ELSE 0 END) AS assigned_revenue,
-        
+        SUM(CASE WHEN majorcode = 120 AND nmamcode = majorcode THEN amount ELSE 0 END) AS assigned_revenue,
+
         -- For validation 13: Rental Income (majorCode 130)
-        SUM(CASE WHEN majorcode = 130 AND subcode = 0 THEN amount ELSE 0 END) AS rental_income,
-        
+        SUM(CASE WHEN majorcode = 130 AND nmamcode = majorcode THEN amount ELSE 0 END) AS rental_income,
+
         -- For validation 14: Fees & User Charges (majorCode 140)
-        SUM(CASE WHEN majorcode = 140 AND subcode = 0 THEN amount ELSE 0 END) AS fees_user_charges,
-        
+        SUM(CASE WHEN majorcode = 140 AND nmamcode = majorcode THEN amount ELSE 0 END) AS fees_user_charges,
+
         -- For validation 15: Sales & Hire Charges (majorCode 150)
-        SUM(CASE WHEN majorcode = 150 AND subcode = 0 THEN amount ELSE 0 END) AS sales_hire_charges,
-        
+        SUM(CASE WHEN majorcode = 150 AND nmamcode = majorcode THEN amount ELSE 0 END) AS sales_hire_charges,
+
         -- For validation 16: Grants (majorCode 160)
-        SUM(CASE WHEN majorcode = 160 AND subcode = 0 THEN amount ELSE 0 END) AS grants,
-        
+        SUM(CASE WHEN majorcode = 160 AND nmamcode = majorcode THEN amount ELSE 0 END) AS grants,
+
         -- For validation 17: Income from Investment (majorCode 170)
-        SUM(CASE WHEN majorcode = 170 AND subcode = 0 THEN amount ELSE 0 END) AS investment_income,
-        
+        SUM(CASE WHEN majorcode = 170 AND nmamcode = majorcode THEN amount ELSE 0 END) AS investment_income,
+
         -- For validation 18: Interest Earned (majorCode 171)
-        SUM(CASE WHEN majorcode = 171 AND subcode = 0 THEN amount ELSE 0 END) AS interest_earned,
-        
+        SUM(CASE WHEN majorcode = 171 AND nmamcode = majorcode THEN amount ELSE 0 END) AS interest_earned,
+
         -- For validation 19: Other Income (majorCode 180)
-        SUM(CASE WHEN majorcode = 180 AND subcode = 0 THEN amount ELSE 0 END) AS other_income,
-        
-        -- For validation 21: Property Tax Revenue (majorCode 110, subCode 1100101)
-        SUM(CASE WHEN majorcode = 110 AND subcode = 1100101 THEN amount ELSE 0 END) AS property_tax_revenue,
-        
-        -- For validation 22: Tax Revenue particulars (majorCode 110, subCode starts with 110)
-        SUM(CASE WHEN majorcode = 110 AND CAST(subcode AS text) LIKE '110%' THEN amount ELSE 0 END) AS tax_revenue_particulars
+        SUM(CASE WHEN majorcode = 180 AND nmamcode = majorcode THEN amount ELSE 0 END) AS other_income,
+
+        -- For validation 21: Property Tax Revenue (majorCode 110, nmamCode 1100101)
+        SUM(CASE WHEN majorcode = 110 AND nmamcode = 1100101 THEN amount ELSE 0 END) AS property_tax_revenue,
+
+        -- For validation 22: Tax Revenue particulars (majorCode 110, nmamCode starts with 110)
+        SUM(CASE WHEN majorcode = 110 AND CAST(nmamcode AS text) LIKE '110%' THEN amount ELSE 0 END) AS tax_revenue_particulars
         
     FROM source_data
     GROUP BY ulb, state, year

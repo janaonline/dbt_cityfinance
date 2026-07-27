@@ -4,7 +4,7 @@
 
 -- Purpose: Aggregate financial data at the major code level
 -- Description: This mart table rolls up detailed AP API data to major classification level,
---              filtering out sub-items (subCode = 0) to show only top-level categories
+--              filtering out sub-items (nmamCode = majorCode) to show only top-level categories
 --
 -- Data includes: Major code groupings, line item names, amounts, and geographic/temporal dimensions
 -- Updated timestamp in IST (Indian Standard Time) for consistency across deployments
@@ -32,6 +32,6 @@ SELECT
     
 FROM {{ ref('cf_municipal_finance_master') }}
 
--- Filter condition: Include only major-level records (subCode = 0)
+-- Filter condition: Include only major-level records (nmamCode = majorCode)
 -- This excludes detail rows and prevents double-counting in aggregations
-WHERE subCode = 0
+WHERE nmamCode = majorCode

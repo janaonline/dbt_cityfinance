@@ -23,8 +23,8 @@ datacollections AS (
 -- 🔹 inline the lineitemslegends transformation (removed view dependency)
 lineitemslegends AS (
     SELECT
-        FLOOR("subCode")::int AS subCode,
-        FLOOR("majorCode")::int AS majorCode,
+        FLOOR({{ safe_numeric('"nmamCode"') }})::int AS nmamCode,
+        FLOOR({{ safe_numeric('"majorCode"') }})::int AS majorCode,
         CASE
             WHEN name IS NULL THEN NULL
             ELSE upper(left(lower(name), 1)) || substring(lower(name) FROM 2)
@@ -64,8 +64,8 @@ expanded_lineitems AS (
 -- 🔹 attach descriptive fields and derive additional attributes
 final_data AS (
     SELECT
-        l.majorCode,                        -- top‑level code from legend
-        COALESCE(l.subCode, 0) AS subCode,  -- use zero for missing subcodes
+        l.majorCode,                          -- top‑level code from legend
+        COALESCE(l.nmamCode, 0) AS nmamCode,  -- 0 when no legend row matched at all
         l.name AS lineItemName,             -- human readable description
         e.amount AS Amount,                 -- monetary amount
 
@@ -88,11 +88,11 @@ final_data AS (
 
     FROM expanded_lineitems e
 
-    -- join to get the legend information; match subCode exactly,
-    -- or if subCode is null match on the majorCode alone.
+    -- join to get the legend information; match nmamCode exactly,
+    -- or if this is a major-level record (nmamCode = majorCode) match on majorCode alone.
     LEFT JOIN lineitemslegends l
-        ON e.line_code = l.subCode
-        OR (e.line_code = l.majorCode AND l.subCode IS NULL)
+        ON e.line_code = l.nmamCode
+        OR (e.line_code = l.majorCode AND l.nmamCode = l.majorCode)
 
     -- attach ULB, state and year lookups
     LEFT JOIN ulbs u
