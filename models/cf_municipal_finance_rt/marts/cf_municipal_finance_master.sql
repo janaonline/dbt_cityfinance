@@ -1,0 +1,110 @@
+{{ config(materialized='table', tags=['cf_municipal_finance_rt']) }}
+
+/*
+  This model builds a flattened, human‑readable table from the
+  `cf_municipal_finance_rt` source.  The raw data comes in as JSON blobs;
+  we explode the `lineItems` object into individual rows, look up
+  descriptive metadata from the legend table, attach ULB / state /
+  year names, classify each row by the “head of account” and record a
+  timestamp.
+
+  Materialized as a table for reporting/consumption by downstream
+  models or tools.
+*/
+
+WITH
+
+-- pull the source collection containing the JSON payloads
+datacollections AS (
+    SELECT *
+    FROM {{ source('cf_municipal_finance_rt', 'datacollections') }}
+),
+
+-- 🔹 inline the lineitemslegends transformation (removed view dependency)
+lineitemslegends AS MATERIALIZED (
+    SELECT
+        FLOOR({{ safe_numeric('"nmamCode"') }})::int AS nmamCode,
+        FLOOR({{ safe_numeric('"majorCode"') }})::int AS majorCode,
+        CASE
+            WHEN name IS NULL THEN NULL
+            ELSE upper(left(lower(name), 1)) || substring(lower(name) FROM 2)
+        END AS name
+    FROM {{ source('cf_municipal_finance_rt', 'lineitemslegends') }}
+),
+
+-- lookup tables for ULBs, states and years
+ulbs AS (
+    SELECT *
+    FROM {{ source('cityfinance_prod', 'ulbs') }}
+),
+
+states AS (
+    SELECT *
+    FROM {{ source('cityfinance_prod', 'states') }}
+),
+
+years AS (
+    SELECT *
+    FROM {{ source('cityfinance_prod', 'years') }}
+),
+
+-- 🔹 explode the JSON object in each datacollection row
+expanded_lineitems AS (
+    SELECT
+        dc."_id",                  -- original record id
+        dc."ulbId",                -- foreign key to ulb lookup
+        dc."yearId",               -- foreign key to year lookup
+        li.key::int      AS line_code,   -- numeric code from JSON key
+        li.value::numeric AS amount       -- numeric value from JSON
+    FROM datacollections dc,
+    -- lateral join to turn each key/value pair into its own row
+    LATERAL jsonb_each(dc."lineItems"::jsonb) AS li(key, value)
+),
+
+-- 🔹 attach descriptive fields and derive additional attributes
+final_data AS (
+    SELECT
+        l.majorCode,                          -- top‑level code from legend
+        COALESCE(l.nmamCode, 0) AS nmamCode,  -- 0 when no legend row matched at all
+        l.name AS lineItemName,             -- human readable description
+        e.amount AS Amount,                 -- monetary amount
+
+        u.name AS ulb,                      -- ULB name
+        s.name AS state,                    -- state name
+        y.year AS year,                     -- fiscal year
+
+        -- derive head of account based on the pattern of majorCode
+        CASE
+            WHEN majorCode::text LIKE '1%' THEN 'Revenue'
+            WHEN majorCode::text LIKE '2%' THEN 'Expenditure'
+            WHEN majorCode::text LIKE '3%' THEN 'Liability'
+            WHEN majorCode::text LIKE '4%' THEN 'Asset'
+            ELSE 'Other'
+        END AS "headOfAccount",
+
+        -- capture the timestamp in IST, formatted as requested by front end
+        to_char(now() AT TIME ZONE 'Asia/Kolkata',
+                'FMMonth DD YYYY "at" HH12:MI am') as "updated_at"
+
+    FROM expanded_lineitems e
+
+    -- join to get the legend information; match nmamCode exactly,
+    -- or if this is a major-level record (nmamCode = majorCode) match on majorCode alone.
+    LEFT JOIN lineitemslegends l
+        ON e.line_code = l.nmamCode
+        OR (e.line_code = l.majorCode AND l.nmamCode = l.majorCode)
+
+    -- attach ULB, state and year lookups
+    LEFT JOIN ulbs u
+        ON e."ulbId" = u."_id"
+
+    LEFT JOIN states s
+        ON u."state" = s."_id"
+
+    LEFT JOIN years y
+        ON e."yearId" = y."_id"
+)
+
+-- final result set exposed by this model
+SELECT *
+FROM final_data

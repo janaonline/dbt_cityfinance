@@ -1,0 +1,222 @@
+version: 2
+
+models:
+  - name: cf_municipal_finance_master
+    description: >
+      Base fact table for the Real-Time Municipal Finance Dashboard. Explodes the raw JSON
+      `lineItems` payload submitted by each Urban Local Body (ULB) into one row per financial
+      line item, enriches it with legend metadata (line item name, major/NMAM codes), ULB/state/
+      year lookups, and a derived head-of-account classification. This is the foundational model
+      that cf_municipal_finance_major_heads, cf_municipal_finance_revenue_breakdown, and
+      cf_municipal_finance_validations all build on, supporting multiple states and ULBs.
+    columns:
+      - name: majorcode
+        description: "Major account classification code (e.g. 110, 210, 220) from the legend table, used to group financial line items into a head of account. Null when the line item's code has no matching legend entry."
+        # TODO: add not_null once legend match-rate against production data is verified.
+
+      - name: nmamcode
+        description: "NMAM (National Municipal Accounts Manual) line-item code from the legend table. Equals majorcode for a top-level/parent record, or a more granular child code for a detail-level line item. Defaults to 0 when no legend entry matches at all."
+        tests:
+          - not_null
+
+      - name: lineitemname
+        description: "Human-readable, title-cased description of the line item, sourced from the legend table's name field."
+        # TODO: add not_null once legend match-rate is verified (currently null when no legend row matches).
+
+      - name: amount
+        description: "Monetary amount recorded for this line item, extracted from the raw JSON lineItems payload submitted by the ULB."
+        # TODO: no numeric-sanity test yet; cf_municipal_finance_validations already flags negative
+        # amounts for several major codes — consider promoting some of those rules into tests here.
+
+      - name: ulb
+        description: "Name of the Urban Local Body (ULB), resolved via lookup against the ULBs source table."
+        # TODO: not_null looks likely in practice but depends on every ulbId resolving via LEFT JOIN — confirm before adding.
+
+      - name: state
+        description: "Name of the state the ULB belongs to, resolved via lookup against the states source table."
+
+      - name: year
+        description: "Fiscal year label for the financial record, resolved via lookup against the years source table."
+
+      - name: headOfAccount
+        description: "High-level financial statement classification derived from the first digit of majorcode: 1=Revenue, 2=Expenditure, 3=Liability, 4=Asset, otherwise 'Other'."
+        quote: true
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Revenue', 'Expenditure', 'Liability', 'Asset', 'Other']
+
+      - name: updated_at
+        description: "Model run timestamp in IST (Indian Standard Time), formatted for direct display on the front end."
+    # TODO: no natural unique key survives into the output (datacollections._id isn't selected).
+    # Consider dbt_utils.unique_combination_of_columns on (ulb, state, year, nmamcode) once it's
+    # confirmed that datacollections holds exactly one row per ULB/year.
+
+  - name: cf_municipal_finance_major_heads
+    description: >
+      Rolls up cf_municipal_finance_master to major-code (top) level for the Real-Time Municipal
+      Finance Dashboard, keeping only the parent/summary record per major code (where nmamcode
+      equals majorcode) so consumers see one row per head-of-account category per ULB/year without
+      double-counting detail line items.
+    columns:
+      - name: majorcode
+        description: "Major account classification code for the top-level/parent line item. Guaranteed non-null by this model's WHERE filter (nmamcode = majorcode excludes unmatched/null-code rows)."
+        tests:
+          - not_null
+
+      - name: lineitemname
+        description: "Human-readable description of the major-head line item, sourced from the legend table."
+
+      - name: amount
+        description: "Monetary amount recorded against the major-head (top-level) line item."
+
+      - name: ulb
+        description: "Name of the Urban Local Body (ULB)."
+
+      - name: state
+        description: "Name of the state the ULB belongs to."
+
+      - name: year
+        description: "Fiscal year label for the financial record."
+
+      - name: headOfAccount
+        description: "High-level financial statement classification derived from the first digit of majorcode: 1=Revenue, 2=Expenditure, 3=Liability, 4=Asset, otherwise 'Other'."
+        quote: true
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Revenue', 'Expenditure', 'Liability', 'Asset', 'Other']
+
+      - name: updated_at
+        description: "Model run timestamp in IST, formatted for direct display on the front end."
+    # TODO: consider dbt_utils.unique_combination_of_columns on (ulb, state, year, majorcode) once
+    # the one-row-per-major-code-per-ULB/year grain is confirmed against production data.
+
+  - name: cf_municipal_finance_revenue_breakdown
+    description: >
+      Classifies top-level revenue line items from cf_municipal_finance_master into three
+      taxonomies for the Real-Time Municipal Finance Dashboard — revenue category, Own Source
+      Revenue (OSR) sub-type, and property tax breakdown — keeping only rows that match at least
+      one classification rule.
+    columns:
+      - name: majorcode
+        description: "Major account classification code. Non-null for every surviving row, since the model's WHERE clause only keeps rows tied to a resolved legend entry."
+        tests:
+          - not_null
+
+      - name: lineitemname
+        description: "Human-readable description of the line item, sourced from the legend table."
+
+      - name: amount
+        description: "Monetary amount recorded for the line item; defaulted to 0 when null."
+        tests:
+          - not_null
+
+      - name: nmamcode
+        description: "NMAM line-item code. Non-null for every row (defaults to 0 upstream), though a bare 0 is excluded by this model's own filtering logic."
+        tests:
+          - not_null
+
+      - name: ulb
+        description: "Name of the Urban Local Body (ULB)."
+
+      - name: state
+        description: "Name of the state the ULB belongs to."
+
+      - name: year
+        description: "Fiscal year label for the financial record."
+
+      - name: revenue
+        description: "Top-level revenue category — one of 'Own Source Revenue', 'Assigned Revenue', 'Revenue Grants', 'Other Income' — assigned to major-head-level rows; null for rows that aren't a top-level revenue record."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Own Source Revenue', 'Assigned Revenue', 'Revenue Grants', 'Other Income']
+
+      - name: osr
+        description: "Own Source Revenue (OSR) sub-type classification derived from nmamcode/majorcode; null for rows outside the OSR breakdown."
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - 'Property Tax'
+                  - 'Advertisement Tax'
+                  - 'Cess'
+                  - 'Tax Remission'
+                  - 'Octroi and toll'
+                  - 'Tax refund and early Rebate'
+                  - 'Other Tax'
+                  - 'Vacant Land Tax'
+                  - 'Fees and User Charges'
+                  - 'Sales and Hire Charges'
+                  - 'Rental Income'
+                  - 'Other Income'
+
+      - name: property_tax
+        description: "Flags property tax line items as 'Tax Revenue' when nmamcode falls in the defined property-tax code set; null otherwise."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Tax Revenue']
+
+      - name: updated_at
+        description: "Model run timestamp in IST, formatted for direct display on the front end."
+    # TODO: consider dbt_utils.unique_combination_of_columns on (ulb, state, year, nmamcode) once
+    # the underlying grain is confirmed; also consider whether the commented-out nmamcode IN (...)
+    # filter in the SQL should become the source of truth for an accepted_values test on nmamcode.
+
+  - name: cf_municipal_finance_validations
+    description: >
+      Runs 22 data-quality validation rules per ULB/year over cf_municipal_finance_master (e.g.
+      total revenue/expenditure must be non-zero and non-negative, major-head amounts must be
+      non-negative, tax revenue particulars must reconcile to total tax revenue) and reports a
+      pass/fail summary and human-readable error list, supporting data-quality monitoring for the
+      Real-Time Municipal Finance Dashboard across all states and ULBs.
+    columns:
+      - name: ulb
+        description: "Name of the Urban Local Body (ULB) the validation summary applies to."
+
+      - name: state
+        description: "Name of the state the ULB belongs to."
+
+      - name: year
+        description: "Fiscal year the validation summary applies to."
+
+      - name: validation_status
+        description: "Validation summary in 'X/22' format — the count of failed validation rules out of the fixed 22 rules evaluated for this ULB/year."
+        tests:
+          - not_null
+
+      - name: validation_errors
+        description: "Newline-separated list of human-readable validation failure messages for this ULB/year, or a success message when all 22 validations pass."
+        tests:
+          - not_null
+
+      - name: updated_at
+        description: "Latest model run timestamp (IST) among the underlying line items for this ULB/year."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - ulb
+              - state
+              - year
+    # TODO: total_validations is always a fixed 22 by construction — consider a custom singular
+    # test asserting this invariant if the rule count ever becomes configurable instead of hardcoded.
+
+# # Compile only this module
+# dbt compile --select tag:cf_municipal_finance_rt
+# 
+# # Run only this module
+# dbt run --select tag:cf_municipal_finance_rt
+# 
+# # Run only this module's tests
+# dbt test --select tag:cf_municipal_finance_rt
+# 
+# # Run models + tests together (recommended)
+# dbt build --select tag:cf_municipal_finance_rt
+# 
+# # List tests in this module
+# dbt ls --resource-type test --select tag:cf_municipal_finance_rt
