@@ -126,7 +126,7 @@ total_property_tax_collection AS (
     LEFT JOIN years_base yb
         ON BTRIM(ptm.year::TEXT) = BTRIM(yb.year_id::TEXT)
     WHERE
-        ptm."displayPriority" = '1.17'
+        ptm."displayPriority" = '1.20'
         AND yb.financial_year ~ '^[0-9]{4}-[0-9]{2}$'
 ),
 
