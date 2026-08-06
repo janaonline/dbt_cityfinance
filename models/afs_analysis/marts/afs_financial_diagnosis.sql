@@ -78,7 +78,7 @@ total_property_tax_collection AS (
     FROM {{ source('cityfinance_prod', 'propertytaxopmappers') }} ptm
     LEFT JOIN years_base yb
         ON BTRIM(ptm.year::TEXT) = BTRIM(yb.year_id::TEXT)
-    WHERE ptm."displayPriority" = '1.17'
+    WHERE ptm."displayPriority" = '1.20'
       AND yb.financial_year ~ '^\d{4}-\d{2}$'
 ),
 
