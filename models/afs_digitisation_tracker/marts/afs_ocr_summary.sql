@@ -65,7 +65,13 @@ annual_accounts_status AS (
     SELECT
         ulb_code,
         financial_year,
-        MAX(status) AS annual_account_status
+        MAX(status) AS annual_account_status,
+
+        -- CHANGE: Refer audited_status from afs_annual_account_eligibility.
+        MAX(audited_status) AS audit_status,
+
+        -- CHANGE: Refer unaudited_status from afs_annual_account_eligibility.
+        MAX(unaudited_status) AS unaudit_status
     FROM {{ ref('afs_annual_account_eligibility') }}
     WHERE BTRIM(COALESCE(financial_year, '')) ~ '^[0-9]{4}-[0-9]{2}$'
       AND COALESCE(BTRIM(ulb_code), '') <> ''
@@ -90,6 +96,10 @@ SELECT
     d.population_category_ordered,
 
     aas.annual_account_status,
+
+    -- CHANGE: Added audited and unaudited eligibility statuses to OCR summary output.
+    aas.audit_status,
+    aas.unaudit_status,
 
     d.selection_reason,
     d.duplicate_count,
