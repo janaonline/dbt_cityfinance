@@ -23,6 +23,7 @@ Repo-specific checks — not generic SQL style advice. Cross-check against [../.
 
 - [ ] Any `->>'code'` / `->>'key'` extraction from a JSON/JSONB line-items blob is guarded with a numeric regex (`~ '^-?[0-9]+(\.[0-9]+)?$'`) before being cast, since JSON keys/values here are free-form and not schema-validated.
 - [ ] If the source column is stored as `TEXT` rather than native `jsonb`, it's explicitly cast (`NULLIF(col::TEXT,'')::jsonb`) before the `->>` — don't assume a text column is already JSON-typed.
+- [ ] When exploding a JSONB array into scalar rows (not extracting an object key), `jsonb_array_elements_text(...)` is used, not `jsonb_array_elements(...)` + `CAST(...AS text)`/`::text` — the latter leaves JSON string quoting in place and breaks comparisons against plain text/numeric columns.
 
 ## Joins
 
