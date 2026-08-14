@@ -11,7 +11,6 @@
   - [✅ Run Models by Tag](#️-run-models-by-tag)
   - [🧪 For Dev vs Prod Environments](#-for-dev-vs-prod-environments)
   - [🧠 How Schema Naming Is Controlled](#-how-schema-naming-is-controlled)
-  - [🧪 Testing & Running Locally](#-testing--running-locally)
   - [🚀 Optional: Prefect/Dalgo Task Commands](#-optional-prefectdalgo-task-commands)
   - [🧼 Clean-Up & Best Practices](#-clean-up--best-practices)
 - [🌱 How to Load Data from CSV Files Using dbt Seed](#-how-to-load-data-from-csv-files-using-dbt-seed)
@@ -118,6 +117,8 @@ models/
 │   └── schema.yml
 ```
 
+> This tree is illustrative. For this repo's actual, current folder layout and per-module inventory (which modules really have `staging/`/`schema.yml`), see **[docs/folder_structure.md](docs/folder_structure.md)**. For how schema routing, materialization, tags, and data flow actually work end-to-end, see **[docs/architecture.md](docs/architecture.md)**.
+
 ---
 
 ## 🏷️ Tags Setup (`dbt_project.yml`)
@@ -147,101 +148,76 @@ models:
 
 ## ✅ Run Models by Tag
 
-| Command                                                        | What It Does                                            |
-| -------------------------------------------------------------- | ------------------------------------------------------- |
-| `dbt run --select tag:property_tax`                            | Runs all models tagged `property_tax`                   |
-| `dbt run --select tag:grants_condition`                        | Runs all models from grants condition module            |
-| `dbt run --select tag:staging`                                 | ⚠️ Runs *all* staging models across modules             |
-| `dbt run --select models/grants_condition/staging tag:staging` | ✅ Best way to run only grants\_condition staging models |
-| `dbt run --select models/grants_condition/marts tag:marts`     | Runs only `marts` folder models for `grants_condition`  |
+| Command                                                                    | What It Does                                            |
+| --------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `dbt run --select tag:property_tax --target dev`                            | Runs all models tagged `property_tax`                   |
+| `dbt run --select tag:grants_condition --target dev`                        | Runs all models from grants condition module            |
+| `dbt run --select tag:staging --target dev`                                 | ⚠️ Runs *all* staging models across modules             |
+| `dbt run --select models/grants_condition/staging tag:staging --target dev` | ✅ Best way to run only grants\_condition staging models |
+| `dbt run --select models/grants_condition/marts tag:marts --target dev`     | Runs only `marts` folder models for `grants_condition`  |
+
+`--target dev` is shown above since it's the safe default (lands in the sandbox `dev_schema`) — swap it for `--target prod` when you deliberately want the real per-module schema instead. See **[🧪 For Dev vs Prod Environments](#-for-dev-vs-prod-environments)** below for the full explanation.
 
 ---
 
 ## 🧪 For Dev vs Prod Environments
 
-You have only **one database**, so schema separation is handled inside `dbt_project.yml`.
+You have only **one database** (`cityfinance`, on the shared production RDS instance) — there's no separate dev database. Schema separation is handled entirely by **which named target you run under**, combined with the custom macro described below.
 
-But your `profiles.yml` still controls which database/schema gets used (default fallback):
-
-### Example local `profiles.yml`:
+### Local `profiles.yml` — two targets, same database
 
 ```yaml
-janaagraha:
-  target: dev
+Janaagraha:
+  target: dev   # 👈 default when --target is omitted
   outputs:
     dev:
       type: postgres
       ...
-      schema: dev_schema  # fallback only; overridden by `+schema:` in project
+      schema: dev_schema   # only ever used when target.name == 'dev' — see below
+    prod:
+      type: postgres
+      ...
+      schema: dev_schema   # NOTE: this value is never actually read — see below
 ```
 
-### 🔁 Dalgo's Platform
+- **`dev`** — the profile's default. Both a bare `dbt run` (no `--target` flag) and an explicit `--target dev` resolve to this target, and both land in the shared `dev_schema` sandbox.
+- **`prod`** — must be requested explicitly with `--target prod`. Lands in each module's *real* configured `+schema` from `dbt_project.yml` (e.g. `property_tax_poc_prod`, `cf_requests`) — the same schemas Dalgo's production orchestration writes to.
 
-Dalgo uses **its own internal `profiles.yml`**, e.g., with:
-
-```yaml
-target: dbt_staging
-```
-
-So all models without `+schema` would go into `dbt_staging`.
-
-But you **override that** with:
-
-```yaml
-+schema: grants_condition_prod
-```
+Dalgo (production orchestration) supplies its own separate internal `profiles.yml`/target — not this file, not visible to this repo — so don't confuse Dalgo's target naming with the local `dev`/`prod` targets described here.
 
 ---
 
 ## 🧠 How Schema Naming Is Controlled
 
-You overrode the default schema naming logic using:
+The actual macro in this project (`macros/generate_schema_name.sql`):
 
 ```jinja
--- macros/generate_schema_name.sql
 {% macro generate_schema_name(custom_schema_name, node) %}
-    {{ custom_schema_name if custom_schema_name is not none else target.schema }}
+    {%- if target.name == 'dev' -%}
+        {{ target.schema }}
+    {%- else -%}
+        {{ custom_schema_name if custom_schema_name is not none else target.schema }}
+    {%- endif -%}
 {% endmacro %}
 ```
 
-✅ So now:
+dbt calls this automatically for **every model** (it's one of dbt's reserved macro-override hooks — no model ever references it directly). It's given `custom_schema_name`, which is whatever `+schema` is set to for that model's module in `dbt_project.yml`, and it has access to `target.name` (the current target's name, e.g. `'dev'` or `'prod'`) and `target.schema` (the `schema:` value from that target's block in `profiles.yml`).
 
-* `+schema: grants_condition_prod` → will generate schema **exactly as written**
-* No more unwanted prefixes like `dbt_staging_grants_condition_prod`
+**The key thing to understand:** `target.schema` (the `schema:` field in `profiles.yml`) is not automatically used anywhere — it's only used if the macro's code explicitly returns it. Whether that happens depends entirely on `target.name`, not on what the `schema:` field says.
 
----
+### Worked example: `tax_sub_rate` (module `property_tax_poc`, `+schema: property_tax_poc_prod`)
 
-## 🧪 Testing & Running Locally
+| Command | `target.name` | Branch taken | Result |
+|---|---|---|---|
+| `dbt run --select tax_sub_rate --target dev` | `'dev'` | `if` branch → returns `target.schema` | `dev_schema` |
+| `dbt run --select tax_sub_rate` *(no `--target` flag)* | `'dev'` (the profile default) | `if` branch → returns `target.schema` | `dev_schema` |
+| `dbt run --select tax_sub_rate --target prod` | `'prod'` | `else` branch → `custom_schema_name` is `'property_tax_poc_prod'`, not `None` → returns it | `property_tax_poc_prod` |
 
-Temporarily Remove or Comment Out `+schema:` in `dbt_project.yml`
+Notice the `prod` target's `schema: dev_schema` line in `profiles.yml` is **never actually read** in that third row — the `else` branch checks `custom_schema_name` first, finds it's not `None` (every module sets `+schema` explicitly), and returns that instead. `target.schema` would only be used as a last-resort fallback if some module forgot to set `+schema` at all, which doesn't happen today. So it doesn't matter that both `dev:` and `prod:` blocks happen to write `schema: dev_schema` — only the `dev:` block's value is ever actually consulted, because only the `dev`-named target's branch reads it.
 
-1. In your `dbt_project.yml`, comment out or remove the `+schema:` line under the relevant model path (e.g., under `grants_condition.marts`).
-2. Save the file.
-3. Run: 
-
-### Run only property_tax module:
-
-```bash
-dbt run --select grants_condition --target dev
-```
-or Run only property_tax tag
-
-```bash
-dbt run --select tag:grants_condition --target dev
-```
-or Run by folder path
-
-```bash
-dbt run --select models/grants_condition/marts tag:marts
-```
-
-### Run specific sql file (e.g., fold1bUntiedAndTied.sql file)
-
-```bash
-dbt run --select fold1bUntiedAndTied --target dev
-```
-
-This will use the schema from your `profiles.yml` (dev_schema).
+✅ Net effect:
+* `--target dev` or no flag at all → safe `dev_schema` sandbox.
+* `--target prod` → the real `+schema` exactly as written in `dbt_project.yml`, no `<target>_<custom>` prefixing.
 
 ---
 

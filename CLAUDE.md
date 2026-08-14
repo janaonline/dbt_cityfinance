@@ -12,11 +12,13 @@ This is a dbt (dbt-core 1.11, dbt-postgres) project for [CityFinance](https://ci
 source venv/bin/activate      # local venv already has dbt-core + dbt-postgres
 dbt deps                      # install packages from packages.yml — run before any dbt run
 dbt debug                     # verify profiles.yml connection
-dbt run --target dev          # profiles.yml only defines a `dev` target locally
+dbt run --target dev          # lands in the shared dev_schema sandbox (also the default if --target is omitted)
 dbt test --target dev
 dbt seed --target dev         # loads seeds/iso_codes.csv
 dbt build --target dev        # run + test in DAG order
 ```
+
+**`dev` is the safe default.** `profiles.yml`'s default target (used when `--target` is omitted) is `dev`, so both a bare `dbt run` and an explicit `--target dev` land in `dev_schema`. To deliberately verify a model against its real configured `+schema` (e.g. `property_tax_poc_prod`) — the same schemas Dalgo's production runs write to, on the same shared database — pass `--target prod` explicitly.
 
 Run a single model:
 ```bash
@@ -31,7 +33,7 @@ dbt run --select tag:property_tax_poc --target dev
 ```
 Folder-path selection also works, but `--select tag:staging` matches staging models across *every* module, not just one — scope it: `dbt run --select models/grants_condition/staging tag:staging`.
 
-`profiles.yml` is git-ignored and holds real dev DB credentials — never commit it. Production runs happen via Dalgo (Prefect-based orchestration), which supplies its own internal `profiles.yml` and always runs `dbt deps` first; don't assume a `profiles.yml` exists when reasoning about prod.
+`profiles.yml` is git-ignored and holds real DB credentials — never commit it. It defines two targets against the same single shared Postgres instance: `dev` (schema `dev_schema` — the default, used both when `--target` is omitted and when passed explicitly) and `prod` (must be requested explicitly via `--target prod`, resolves through each module's real `+schema`). This repo's Dalgo-orchestrated production runs are unrelated to this local `prod` target — Dalgo supplies its own internal `profiles.yml`/target entirely separate from this file; don't assume this `profiles.yml` exists when reasoning about Dalgo's runs.
 
 ## Architecture
 
@@ -40,28 +42,34 @@ Models are organized **one folder per business module** under `models/`, not by 
 ```
 models/<module>/
   source.yml       # source declarations (raw tables replicated from MongoDB)
-  schema.yml        # (optional) column tests for staging models
+  schema.yml        # (optional) column tests
   staging/          # (optional) thin cleanup/rename models
   marts/            # final, table-materialized models with business logic
 ```
 
-Current modules: `property_tax_poc`, `grants_condition`, `grants_allocation`, `ap_api_poc`, `afs_digitisation_tracker`, `afs_analysis`, `market_readiness`, `nmam_ulb_response`, `cf_municipal_finance_rt`. Most modules only have `marts/`; `property_tax_poc` is the one with a full `staging/` layer.
+Current modules: `property_tax_poc`, `grants_condition`, `grants_allocation`, `ap_api_poc`, `afs_digitisation_tracker`, `afs_analysis`, `market_readiness`, `nmam_ulb_response`, `cf_municipal_finance_rt`. Most modules only have `marts/`; `property_tax_poc` is the one with a full `staging/` layer and, along with `cf_municipal_finance_rt`, the only ones with a `schema.yml`.
 
-**Schema routing is entirely config-driven, not folder-driven.** Every module needs its own `models: Janaagraha: <module>: { staging: {...}, marts: {...} }` block in `dbt_project.yml` setting `+schema`, `+tags`, and `+materialized` (almost everything here is `table`). When adding a new module, add its block there — without it, models fall back to whatever schema `profiles.yml`/the calling platform provides.
+**Schema routing is entirely config-driven, not folder-driven.** Every module needs its own `models: Janaagraha: <module>: { staging: {...}, marts: {...} }` block in `dbt_project.yml` setting `+schema`, `+tags`, and `+materialized` (almost everything here is `table`). `macros/generate_schema_name.sql` returns `+schema` **verbatim** (no `<target>_<custom>` concatenation) — omitting `+schema` falls back to `target.schema` rather than erroring. **Exception:** under `--target dev` (also this local `profiles.yml`'s default, used when `--target` is omitted), the macro ignores `+schema` entirely and always resolves to `dev_schema` — the safe sandbox on the shared database. Any other target — this local `profiles.yml`'s explicit `prod` target, or Dalgo's separate production orchestration — uses `+schema` verbatim as usual.
 
-`macros/generate_schema_name.sql` overrides dbt's default schema-name macro to return `+schema` **verbatim** (no `<target>_<custom>` concatenation). This means `+schema` must always be set explicitly per module block — omitting it silently falls back to `target.schema`.
-
-## Data model conventions
-
-- Sources (`source.yml` in each module) point at Postgres schemas holding data replicated from the MongoDB app — commonly `cf_prod`, `mongo_staging`, `cf_staging`. Raw tables use Mongo conventions: `_id` as primary key, booleans stored as the strings `'true'`/`'false'` (e.g. `WHERE u."isActive" = 'true'`), and mixed-case quoted column names (`"isPublish"`, `"ulbType"`).
-- Two shared macros used throughout marts models — always pass the column as a **quoted string**, not a bare ref:
-  - `{{ safe_numeric('ptm.value') }}` (`macros/safe_numeric.sql`) — cleans/validates messy numeric strings (commas, whitespace, leading/trailing dots) and casts to `numeric`, returning `NULL` if invalid.
-  - `{{ design_year_minus('uy.design_year', 1) }}` (`macros/design_year_minus.sql`) — subtracts `n` years from a `'YYYY-YY'` design-year string.
-- When a clean `_id` join between a source table and a JSON/derived table isn't available, models normalize ULB names into a fuzzy join key: `LOWER(REGEXP_REPLACE(BTRIM(col::TEXT), '[[:space:]]+', ' ', 'g'))`, typically aliased `ulb_join_key`.
-- Financial line items are often stored as JSON blobs (e.g. `lineitems_json ->> '110'`); values are extracted with a numeric-regex guard (`~ '^-?[0-9]+(\.[0-9]+)?$'`) before casting, since JSON keys are free-form strings.
-- CAGR columns follow a repeated pattern: compute `POWER(end_year_value / start_year_value, 1.0/n) - 1) * 100`, guarding division by zero with `NULLIF`, and union the result as a synthetic `'CAGR'` pseudo-year row alongside the per-year rows.
-- Marts models are typically single large `SELECT`s built from CTEs, with final output columns aliased as human-readable, quoted "Title Case" strings (e.g. `"Total ULBs"`, `"Property Tax as % of OSR"`) since these tables are consumed directly for reporting/export rather than by further models.
+Full data flow, the complete schema-routing table, macro behavior, recurring SQL patterns (CAGR, JSON line-item extraction, fuzzy ULB joins, output-aliasing conventions), and testing architecture are documented in **[docs/architecture.md](docs/architecture.md)**. Full repo layout and per-module inventory (which modules have `staging/`/`schema.yml`) are in **[docs/folder_structure.md](docs/folder_structure.md)**.
 
 ## Packages (`packages.yml`)
 
-`dbt_utils` 1.3.0, `dbt_expectations` 0.10.4, `elementary-data/elementary` 0.16.2. Elementary gets its own schema (`models: elementary: +schema: "elementary"` in `dbt_project.yml`), and the project-level flag `require_explicit_package_overrides_for_builtin_materializations: false` exists specifically for Elementary/dbt 1.8+ compatibility — don't remove it.
+`dbt_utils` 1.3.0, `dbt_expectations` 0.10.4 (installed, currently unused), `elementary-data/elementary` 0.16.2 (own `elementary` schema). The project-level flag `require_explicit_package_overrides_for_builtin_materializations: false` exists specifically for Elementary/dbt 1.8+ compatibility — don't remove it.
+
+## Claude Skills
+
+Repo-specific workflows live in `.claude/skills/`: `dbt-model-development`, `dbt-module-development`, `sql-review`, `sql-business-logic`, `dbt-testing`, `dbt-debugging`, `dbt-change-review`, `dbt-documentation-maintenance`. Use the matching skill instead of re-deriving conventions from scratch — e.g. adding a model → `dbt-model-development`, reviewing SQL → `sql-review`.
+
+## Documentation and Architecture Maintenance
+
+After completing a task, check whether it changed a documented fact — update only what actually changed, don't touch docs reflexively:
+
+- Folder/file layout changed → update `docs/folder_structure.md`.
+- Schema routing, materialization, tags, macros, SQL conventions, testing strategy, or dependencies changed → update `docs/architecture.md`.
+- A project-wide instruction or command changed → update this file.
+- A reusable workflow or domain-knowledge detail changed → update the relevant skill in `.claude/skills/`.
+- A new module or model was added → review `docs/folder_structure.md`, `docs/architecture.md`'s module/routing tables, and `dbt-module-development`.
+- SQL or business logic changed → review `sql-business-logic`, relevant tests, and `docs/architecture.md`.
+
+See `.claude/skills/dbt-documentation-maintenance/SKILL.md` for the full decision guide.
