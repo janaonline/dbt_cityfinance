@@ -23,6 +23,11 @@ models:
         description: "Human-readable, title-cased description of the line item, sourced from the legend table's name field."
         # TODO: add not_null once legend match-rate is verified (currently null when no legend row matches).
 
+      - name: filterlineitemname
+        description: "Filter-friendly rollup of lineitemname: every nmamcode that starts with a given majorcode's digits (at any nesting depth) takes that majorcode's own top-level name, so all of a major head's sub-codes group under one filter value (e.g. every code under 110 shows 'Tax revenue', regardless of nesting depth); falls back to the row's own lineitemname when majorcode/nmamcode don't resolve to a legend entry."
+        tests:
+          - not_null
+
       - name: amount
         description: "Monetary amount recorded for this line item, extracted from the raw JSON lineItems payload submitted by the ULB."
         # TODO: no numeric-sanity test yet; cf_municipal_finance_validations already flags negative

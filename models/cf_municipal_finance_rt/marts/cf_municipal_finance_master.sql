@@ -32,6 +32,20 @@ lineitemslegends AS MATERIALIZED (
     FROM {{ source('cf_municipal_finance_rt', 'lineitemslegends') }}
 ),
 
+-- 🔹 each major head's own top-level name, keyed by majorCode, so any
+--    nmamCode nested under it (any depth) can be grouped under one
+--    filter value (see filterlineitemname below)
+major_head_names AS (
+    SELECT
+        FLOOR({{ safe_numeric('"majorCode"') }})::int AS majorCode,
+        CASE
+            WHEN name IS NULL THEN NULL
+            ELSE upper(left(lower(name), 1)) || substring(lower(name) FROM 2)
+        END AS parent_name
+    FROM {{ source('cf_municipal_finance_rt', 'lineitemslegends') }}
+    WHERE FLOOR({{ safe_numeric('"nmamCode"') }})::int = FLOOR({{ safe_numeric('"majorCode"') }})::int
+),
+
 -- lookup tables for ULBs, states and years
 ulbs AS (
     SELECT *
@@ -67,6 +81,7 @@ final_data AS (
         l.majorCode,                          -- top‑level code from legend
         COALESCE(l.nmamCode, 0) AS nmamCode,  -- 0 when no legend row matched at all
         l.name AS lineItemName,             -- human readable description
+        COALESCE(mh.parent_name, l.name) AS filterlineitemname, -- every nmamCode under a majorCode (any nesting depth) takes that majorCode's own top-level name; falls back to the row's own name when unmatched
         e.amount AS Amount,                 -- monetary amount
 
         u.name AS ulb,                      -- ULB name
@@ -75,10 +90,10 @@ final_data AS (
 
         -- derive head of account based on the pattern of majorCode
         CASE
-            WHEN majorCode::text LIKE '1%' THEN 'Revenue'
-            WHEN majorCode::text LIKE '2%' THEN 'Expenditure'
-            WHEN majorCode::text LIKE '3%' THEN 'Liability'
-            WHEN majorCode::text LIKE '4%' THEN 'Asset'
+            WHEN l.majorCode::text LIKE '1%' THEN 'Revenue'
+            WHEN l.majorCode::text LIKE '2%' THEN 'Expenditure'
+            WHEN l.majorCode::text LIKE '3%' THEN 'Liability'
+            WHEN l.majorCode::text LIKE '4%' THEN 'Asset'
             ELSE 'Other'
         END AS "headOfAccount",
 
@@ -93,6 +108,12 @@ final_data AS (
     LEFT JOIN lineitemslegends l
         ON e.line_code = l.nmamCode
         OR (e.line_code = l.majorCode AND l.nmamCode = l.majorCode)
+
+    -- roll this row's nmamCode up to its major head's own name, whenever
+    -- nmamCode starts with that majorCode's digits (true at any nesting depth)
+    LEFT JOIN major_head_names mh
+        ON l.majorCode = mh.majorCode
+       AND CAST(l.nmamCode AS text) LIKE CAST(mh.majorCode AS text) || '%'
 
     -- attach ULB, state and year lookups
     LEFT JOIN ulbs u
